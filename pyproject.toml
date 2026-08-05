@@ -1,0 +1,12 @@
+[project]
+name = "renpy-fan-video"
+version = "0.1.0"
+description = "RenPy-Fan-Video - Estrai immagini statiche da giochi Ren'Py e genera patch che le sostituiscono con video webm"
+requires-python = ">=3.9"
+dependencies = [
+    "PySide6>=6.6.0",
+    "pillow>=10.0.0",
+]
+
+[tool.uv]
+python-preference = "system"

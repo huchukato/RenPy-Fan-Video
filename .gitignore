@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
+*.egg-info/
+*.dmg
+*.zip
+release/
+*.spec
+
+# Build scripts locali (non pushati)
+build_*.sh
+
+# Markers estrazione
+*.rpa.extracted
+
+# Sessione/progetto locale
+FanVideoProjects/
