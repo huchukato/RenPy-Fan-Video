@@ -130,10 +130,15 @@ TRANSLATIONS = {
         'col_status': "Status",
         'btn_remove': "Remove selected",
         'btn_associate': "Associate video...",
-        'chk_open': "Open patch folder",
+        'btn_remove_patch': "Remove Patch",
+        'btn_remove_patch_tip': "Delete fan_videos.rpy and associated videos from the game",
+        'remove_patch_title': "Remove Patch",
+        'remove_patch_msg': "This will delete fan_videos.rpy and all associated video files from the game folder. Proceed?",
+        'remove_patch_done': "Patch removed successfully.",
+        'remove_patch_nothing': "No patch found in the game folder.",
         'btn_generate': "Generate Patch",
-        'btn_export': "Export Mod",
-        'btn_export_tip': "Create a zip archive of the patch to share",
+        'btn_export_mod': "Export Mod",
+        'btn_export_mod_tip': "Create a zip archive of the patch to share",
         'export_title': "Export Mod",
         'export_choose_dir': "Choose where to save the mod zip",
         'export_no_patch': "Generate the patch first before exporting.",
@@ -255,10 +260,15 @@ TRANSLATIONS = {
         'col_status': "Stato",
         'btn_remove': "Rimuovi selezionato",
         'btn_associate': "Associa video...",
-        'chk_open': "Apri cartella patch",
+        'btn_remove_patch': "Rimuovi Patch",
+        'btn_remove_patch_tip': "Elimina fan_videos.rpy e i video associati dal gioco",
+        'remove_patch_title': "Rimuovi Patch",
+        'remove_patch_msg': "Verranno eliminati fan_videos.rpy e tutti i video associati dalla cartella del gioco. Procedere?",
+        'remove_patch_done': "Patch rimossa con successo.",
+        'remove_patch_nothing': "Nessuna patch trovata nella cartella del gioco.",
         'btn_generate': "Genera Patch",
-        'btn_export': "Esporta Mod",
-        'btn_export_tip': "Crea un archivio zip della patch da condividere",
+        'btn_export_mod': "Esporta Mod",
+        'btn_export_mod_tip': "Crea un archivio zip della patch da condividere",
         'export_title': "Esporta Mod",
         'export_choose_dir': "Scegli dove salvare lo zip della mod",
         'export_no_patch': "Genera prima la patch prima di esportare.",
@@ -380,10 +390,15 @@ TRANSLATIONS = {
         'col_status': "Estado",
         'btn_remove': "Eliminar seleccionado",
         'btn_associate': "Asociar video...",
-        'chk_open': "Abrir carpeta patch",
+        'btn_remove_patch': "Eliminar Patch",
+        'btn_remove_patch_tip': "Eliminar fan_videos.rpy y los videos asociados del juego",
+        'remove_patch_title': "Eliminar Patch",
+        'remove_patch_msg': "Se eliminaran fan_videos.rpy y todos los videos asociados de la carpeta del juego. Continuar?",
+        'remove_patch_done': "Patch eliminado con exito.",
+        'remove_patch_nothing': "No se encontro ningun patch en la carpeta del juego.",
         'btn_generate': "Generar Patch",
-        'btn_export': "Exportar Mod",
-        'btn_export_tip': "Crear un archivo zip del parche para compartir",
+        'btn_export_mod': "Exportar Mod",
+        'btn_export_mod_tip': "Crear un archivo zip del parche para compartir",
         'export_title': "Exportar Mod",
         'export_choose_dir': "Elige donde guardar el zip del mod",
         'export_no_patch': "Genera el parche primero antes de exportar.",
@@ -1005,8 +1020,14 @@ class FanVideoTool(QMainWindow):
         self.btn_remove.clicked.connect(self._remove_assignment)
         self.btn_associate = QPushButton("")
         self.btn_associate.clicked.connect(self._associate_video_for_selected)
-        self.chk_open = QCheckBox("")
-        self.chk_open.setChecked(True)
+        self.btn_remove_patch = QPushButton("")
+        self.btn_remove_patch.setStyleSheet(
+            "QPushButton { padding: 6px 12px; "
+            "background-color: #3a2030; color: #e07090; border: 1px solid #603040; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #4a2838; }"
+            "QPushButton:pressed { background-color: #2a1820; }"
+        )
+        self.btn_remove_patch.clicked.connect(self._remove_patch)
         self.btn_generate = QPushButton("")
         self.btn_generate.setStyleSheet(
             "QPushButton { font-weight: bold; padding: 8px 16px; "
@@ -1015,21 +1036,21 @@ class FanVideoTool(QMainWindow):
             "QPushButton:pressed { background-color: #4a9aa8; }"
         )
         self.btn_generate.clicked.connect(self._generate_patch)
-        self.btn_export = QPushButton("")
-        self.btn_export.setStyleSheet(
+        self.btn_export_mod = QPushButton("")
+        self.btn_export_mod.setStyleSheet(
             "QPushButton { font-weight: bold; padding: 8px 16px; "
             "background-color: #facc15; color: #0d1b2a; border: 1px solid #f0c020; border-radius: 4px; }"
             "QPushButton:hover { background-color: #f0c020; }"
             "QPushButton:pressed { background-color: #d4a810; }"
         )
-        self.btn_export.clicked.connect(self._export_mod)
+        self.btn_export_mod.clicked.connect(self._export_mod)
 
         btn_box.addWidget(self.btn_remove)
         btn_box.addWidget(self.btn_associate)
+        btn_box.addWidget(self.btn_remove_patch)
         btn_box.addStretch()
-        btn_box.addWidget(self.chk_open)
         btn_box.addWidget(self.btn_generate)
-        btn_box.addWidget(self.btn_export)
+        btn_box.addWidget(self.btn_export_mod)
         left.addLayout(btn_box)
         hbox.addLayout(left, 2)
 
@@ -1096,10 +1117,11 @@ class FanVideoTool(QMainWindow):
         )
         self.btn_remove.setText(tr['btn_remove'])
         self.btn_associate.setText(tr['btn_associate'])
-        self.chk_open.setText(tr['chk_open'])
+        self.btn_remove_patch.setText(tr['btn_remove_patch'])
+        self.btn_remove_patch.setToolTip(tr['btn_remove_patch_tip'])
         self.btn_generate.setText(tr['btn_generate'])
-        self.btn_export.setText(tr['btn_export'])
-        self.btn_export.setToolTip(tr['btn_export_tip'])
+        self.btn_export_mod.setText(tr['btn_export_mod'])
+        self.btn_export_mod.setToolTip(tr['btn_export_mod_tip'])
         # Aggiorna preview patch se una riga è selezionata
         self._on_patch_row_changed()
 
@@ -1726,11 +1748,68 @@ class FanVideoTool(QMainWindow):
             msg = self.tr['patch_generated_msg'].format(rpy_path)
             QMessageBox.information(self, self.tr['patch_generated_title'], msg)
 
-            if self.chk_open.isChecked():
-                self._open_folder(rpy_path.parent)
         except Exception as e:
             self._log(f"[ERROR] {e}")
             QMessageBox.critical(self, self.tr['generation_error_title'], str(e))
+
+    def _remove_patch(self):
+        """Rimuove la patch dal gioco: elimina fan_videos.rpy e i video associati."""
+        if not self.game_dir or not self.game_dir.exists():
+            QMessageBox.warning(self, self.tr['error_title'], self.tr['invalid_game_path'])
+            return
+
+        rpy_file = self.game_dir / "fan_videos.rpy"
+        rpyc_file = self.game_dir / "fan_videos.rpyc"
+        videos_dir = self.game_dir / "videos"
+        frames_dir = self.game_dir / "images" / "video frames"
+
+        # Verifica che esista almeno la patch
+        if not rpy_file.exists() and not rpyc_file.exists():
+            QMessageBox.information(self, self.tr['remove_patch_title'], self.tr['remove_patch_nothing'])
+            return
+
+        # Conferma
+        resp = QMessageBox.question(
+            self, self.tr['remove_patch_title'],
+            self.tr['remove_patch_msg'],
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if resp != QMessageBox.Yes:
+            return
+
+        removed = []
+
+        # Elimina fan_videos.rpy e .rpyc
+        for f in [rpy_file, rpyc_file]:
+            if f.exists():
+                f.unlink()
+                removed.append(f.name)
+                self._log(f"Deleted: {f}")
+
+        # Elimina i video associati alle assignments correnti
+        if self.assignments:
+            for a in self.assignments:
+                if a.has_video and a.video_path:
+                    video_name = a.video_path.name
+                    video_in_game = videos_dir / video_name
+                    if video_in_game.exists():
+                        video_in_game.unlink()
+                        removed.append(f"videos/{video_name}")
+                        self._log(f"Deleted: {video_in_game}")
+
+        # Elimina i last frames
+        if self.assignments:
+            for a in self.assignments:
+                if a.last_frame_path and a.last_frame_path.exists():
+                    lf_name = a.last_frame_path.name
+                    lf_in_game = frames_dir / lf_name
+                    if lf_in_game.exists():
+                        lf_in_game.unlink()
+                        removed.append(f"images/video frames/{lf_name}")
+                        self._log(f"Deleted: {lf_in_game}")
+
+        self._log(f"\nPatch removed: {len(removed)} files deleted")
+        QMessageBox.information(self, self.tr['remove_patch_title'], self.tr['remove_patch_done'])
 
     def _open_folder(self, path: Path):
         try:
