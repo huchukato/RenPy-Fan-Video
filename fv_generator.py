@@ -105,8 +105,9 @@ class FVGenerator:
             (filename, renpy_name) dove renpy_name e' il nome senza
             estensione da usare come `image="..."` nel Movie.
         """
-        # Usa lo stem del file come nome Ren'Py
-        renpy_name = frame_path.stem
+        # Usa lo stem del file come nome Ren'Py, sanitizzato
+        # (i nomi image di Ren'Py non possono contenere . o - o altri caratteri speciali)
+        renpy_name = self._safe_renpy_name(frame_path.stem)
         target_name = frame_path.name
         target = self.frames_dir / target_name
         if not target.exists():
@@ -118,9 +119,19 @@ class FVGenerator:
             target_name = f"{stem}_fan{idx}{suffix}"
             target = self.frames_dir / target_name
             idx += 1
-        # Il nome Ren'Py segue il nome file (senza ext)
-        renpy_name = Path(target_name).stem
+        # Il nome Ren'Py segue il nome file (senza ext), sanitizzato
+        renpy_name = self._safe_renpy_name(Path(target_name).stem)
         return target_name, renpy_name
+
+    @staticmethod
+    def _safe_renpy_name(name: str) -> str:
+        """Converte un nome file in un nome valido per `image` di Ren'Py.
+
+        Ren'Py image names can contain letters, digits, underscores and spaces.
+        Everything else is replaced with underscore.
+        """
+        import re
+        return re.sub(r"[^\w]+", "_", name).strip("_")
 
     # ------------------------------------------------------------------ #
     # Generazione
