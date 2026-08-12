@@ -668,16 +668,51 @@ class FanVideoTool(QMainWindow):
     # Session persistence (auto-save / auto-restore)
     # ------------------------------------------------------------------ #
     @staticmethod
-    def _session_path() -> Path:
-        """Percorso del file di sessione globale."""
+    def _global_session_path() -> Path:
+        """Percorso del file di sessione globale (ultimo gioco + lingua)."""
         return Path.home() / "FanVideoProjects" / "session.json"
+
+    def _session_path_for_game(self, game_path: Path | None = None) -> Path:
+        """Percorso del file di sessione per un gioco specifico.
+
+        Salva le assignments in ~/FanVideoProjects/<game_name>/session.json
+        così ogni gioco mantiene il proprio stato indipendentemente.
+        """
+        gp = game_path or self.game_path
+        if not gp:
+            return self._global_session_path()
+        # Deriva il nome progetto (stessa logica di FVProject)
+        name = gp.name
+        if name.endswith(".app"):
+            name = name[:-4]
+        import re as _re
+        name = _re.sub(r"[^\w\-]+", "_", name).strip("_") or "unnamed_game"
+        return Path.home() / "FanVideoProjects" / name / "session.json"
+
+    def _save_global_session(self):
+        """Salva solo l'ultimo gioco aperto e la lingua (file globale)."""
+        if not self.game_path:
+            return
+        data = {
+            "game_path": str(self.game_path),
+            "lang": self.lang,
+            "saved_at": datetime.now().isoformat(),
+        }
+        try:
+            session_file = self._global_session_path()
+            session_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = session_file.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, session_file)
+        except Exception:
+            pass
 
     def _save_session(self):
         """Salva lo stato corrente su disco (auto-save).
 
-        Salva: game_path, lang, e tutte le assignments con i path
-        assoluti dei video/last_frame. Chiamato a ogni modifica delle
-        assignments e al cambio lingua.
+        Salva le assignments nel file di sessione del gioco corrente
+        (~/FanVideoProjects/<game_name>/session.json) e aggiorna il
+        file globale con l'ultimo gioco e la lingua.
         """
         if not self.game_path:
             return
@@ -700,7 +735,7 @@ class FanVideoTool(QMainWindow):
             data["assignments"].append(entry_data)
 
         try:
-            session_file = self._session_path()
+            session_file = self._session_path_for_game()
             session_file.parent.mkdir(parents=True, exist_ok=True)
             # Scrittura atomica: scrive su .tmp poi rinomina
             tmp = session_file.with_suffix(".json.tmp")
@@ -709,24 +744,26 @@ class FanVideoTool(QMainWindow):
         except Exception:
             pass  # non bloccare l'UI se il save fallisce
 
+        # Aggiorna anche il file globale (ultimo gioco + lingua)
+        self._save_global_session()
+
     def _restore_session(self):
         """Ripristina la sessione precedente all'avvio.
 
-        Se esiste un session.json valido:
-        - ripristina game_path e lang
-        - ripristina le assignments
-        - riesegue l'analisi in background per ripopolare la galleria
+        Legge il file globale per l'ultimo gioco aperto e la lingua,
+        poi carica le assignments dal file di sessione del gioco.
         """
-        session_file = self._session_path()
-        if not session_file.exists():
+        # 1. Legge il file globale per game_path + lang
+        global_file = self._global_session_path()
+        if not global_file.exists():
             return
         try:
-            data = json.loads(session_file.read_text(encoding="utf-8"))
+            global_data = json.loads(global_file.read_text(encoding="utf-8"))
         except Exception as e:
             self._log(f"[Session] {self.tr['session_restore_failed'].format(e)}")
             return
 
-        game_path = data.get("game_path")
+        game_path = global_data.get("game_path")
         if not game_path or not Path(game_path).exists():
             return
 
@@ -735,10 +772,19 @@ class FanVideoTool(QMainWindow):
         self.lbl_game.setText(str(self.game_path))
 
         # Ripristina lingua
-        lang = data.get("lang", "en")
+        lang = global_data.get("lang", "en")
         if lang in TRANSLATIONS and lang != self.lang:
             idx = {"en": 0, "it": 1, "es": 2}.get(lang, 0)
             self.cmb_lang.setCurrentIndex(idx)
+
+        # 2. Carica le assignments dal file di sessione del gioco
+        session_file = self._session_path_for_game()
+        data = {"assignments": []}
+        if session_file.exists():
+            try:
+                data = json.loads(session_file.read_text(encoding="utf-8"))
+            except Exception:
+                data = {"assignments": []}
 
         # Ripristina assignments
         self.assignments = []
@@ -1271,23 +1317,81 @@ class FanVideoTool(QMainWindow):
     # ------------------------------------------------------------------ #
     # Azioni
     # ------------------------------------------------------------------ #
+    def _switch_game(self, new_game_path: Path):
+        """Cambia gioco: salva la sessione corrente, carica quella del nuovo.
+
+        - Salva le assignments del gioco corrente nel suo session.json
+        - Azzera le assignments
+        - Imposta il nuovo game_path
+        - Carica le assignments del nuovo gioco dal suo session.json
+        - Aggiorna la UI (patch table, gallery)
+        """
+        # Salva la sessione del gioco corrente (se presente)
+        if self.game_path:
+            self._save_session()
+
+        # Azzera lo stato
+        self.assignments = []
+        self.images = []
+        self.game_dir = None
+
+        # Imposta il nuovo gioco
+        self.game_path = new_game_path
+        self.lbl_game.setText(str(self.game_path))
+
+        # Carica le assignments del nuovo gioco
+        session_file = self._session_path_for_game()
+        if session_file.exists():
+            try:
+                data = json.loads(session_file.read_text(encoding="utf-8"))
+                for a_data in data.get("assignments", []):
+                    video_p = Path(a_data["video_path"]) if a_data.get("video_path") else None
+                    if video_p and not video_p.exists():
+                        video_p = None
+                    start_p = Path(a_data["start_image_path"]) if a_data.get("start_image_path") else None
+                    if start_p and not start_p.exists():
+                        start_p = None
+                    lf_p = Path(a_data["last_frame_path"]) if a_data.get("last_frame_path") else None
+                    if lf_p and not lf_p.exists():
+                        lf_p = None
+                    self.assignments.append(PatchEntry(
+                        image_name=a_data["image_name"],
+                        video_path=video_p,
+                        start_image=a_data.get("start_image", a_data["image_name"]),
+                        start_image_path=start_p,
+                        last_frame_path=lf_p,
+                        last_frame_name=a_data.get("last_frame_name"),
+                        loop=a_data.get("loop", True),
+                    ))
+                n_total = len(self.assignments)
+                n_with_video = sum(1 for a in self.assignments if a.has_video)
+                self._log(f"[Session] Loaded {n_total} assignments for {self.game_path.name} "
+                          f"({n_with_video} with video)")
+            except Exception as e:
+                self._log(f"[Session] Failed to load: {e}")
+
+        # Fallback: project.json se la sessione è vuota
+        if not self.assignments:
+            self._restore_from_project()
+
+        # Aggiorna la UI
+        self._populate_patch()
+        self._populate_gallery()
+        self._save_global_session()
+
     def _select_app(self):
         path, _ = QFileDialog.getOpenFileName(
             self, self.tr['select_app_title'], "", "App bundle (*.app)"
         )
         if path:
-            self.game_path = Path(path)
-            self.lbl_game.setText(str(self.game_path))
-            self._save_session()
+            self._switch_game(Path(path))
 
     def _select_folder(self):
         path = QFileDialog.getExistingDirectory(
             self, self.tr['select_folder_title']
         )
         if path:
-            self.game_path = Path(path)
-            self.lbl_game.setText(str(self.game_path))
-            self._save_session()
+            self._switch_game(Path(path))
 
     def _log(self, msg: str):
         self.log_box.appendPlainText(msg)
