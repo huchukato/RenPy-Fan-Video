@@ -1760,8 +1760,8 @@ class FanVideoTool(QMainWindow):
 
         rpy_file = self.game_dir / "fan_videos.rpy"
         rpyc_file = self.game_dir / "fan_videos.rpyc"
-        videos_dir = self.game_dir / "videos"
-        frames_dir = self.game_dir / "images" / "video frames"
+        videos_dir = self.game_dir / "videos" / "fanvideomod"
+        frames_dir = self.game_dir / "images" / "fanvideomod"
 
         # Verifica che esista almeno la patch
         if not rpy_file.exists() and not rpyc_file.exists():
@@ -1794,7 +1794,7 @@ class FanVideoTool(QMainWindow):
                     video_in_game = videos_dir / video_name
                     if video_in_game.exists():
                         video_in_game.unlink()
-                        removed.append(f"videos/{video_name}")
+                        removed.append(f"videos/fanvideomod/{video_name}")
                         self._log(f"Deleted: {video_in_game}")
 
         # Elimina i last frames
@@ -1805,7 +1805,7 @@ class FanVideoTool(QMainWindow):
                     lf_in_game = frames_dir / lf_name
                     if lf_in_game.exists():
                         lf_in_game.unlink()
-                        removed.append(f"images/video frames/{lf_name}")
+                        removed.append(f"images/fanvideomod/{lf_name}")
                         self._log(f"Deleted: {lf_in_game}")
 
         self._log(f"\nPatch removed: {len(removed)} files deleted")
@@ -1827,8 +1827,8 @@ class FanVideoTool(QMainWindow):
 
         Crea uno zip contenente:
         - fan_videos.rpy (il patch)
-        - videos/ (i file webm)
-        - images/video frames/ (gli ultimi frame)
+        - videos/fanvideomod/ (i file webm)
+        - images/fanvideomod/ (gli ultimi frame)
         - README.txt (istruzioni installazione)
         """
         if not self.assignments:
@@ -1884,16 +1884,16 @@ class FanVideoTool(QMainWindow):
                     if a.video_path and a.video_path.exists():
                         video_in_game = videos_dir / a.video_path.name
                         if video_in_game.exists():
-                            zf.write(video_in_game, f"game/videos/{video_in_game.name}")
-                            self._log(f"Added: game/videos/{video_in_game.name}")
+                            zf.write(video_in_game, f"game/videos/fanvideomod/{video_in_game.name}")
+                            self._log(f"Added: game/videos/fanvideomod/{video_in_game.name}")
 
                 # Last frames
                 for a in active:
                     if a.last_frame_path and a.last_frame_path.exists():
                         lf_in_game = frames_dir / a.last_frame_path.name
                         if lf_in_game.exists():
-                            zf.write(lf_in_game, f"game/images/video frames/{lf_in_game.name}")
-                            self._log(f"Added: game/images/video frames/{lf_in_game.name}")
+                            zf.write(lf_in_game, f"game/images/fanvideomod/{lf_in_game.name}")
+                            self._log(f"Added: game/images/fanvideomod/{lf_in_game.name}")
 
                 # README con istruzioni
                 readme = (
@@ -1906,7 +1906,7 @@ class FanVideoTool(QMainWindow):
                     f"2. Make sure fan_videos.rpy is in game/\n"
                     f"3. Launch the game - videos will replace static images\n\n"
                     f"UNINSTALL:\n"
-                    f"Delete game/fan_videos.rpy and the video files in game/videos/\n"
+                    f"Delete game/fan_videos.rpy and the video files in game/videos/fanvideomod/\n"
                 )
                 zf.writestr("README.txt", readme)
 

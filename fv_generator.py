@@ -4,9 +4,9 @@ RenPy-Fan-Video - Generator Module
 Genera il patch che sostituisce immagini statiche con video webm.
 
 Output:
-  game/fan_videos.rpy                   # definizioni image <name> = Movie(...)
-  game/videos/<video>.webm              # file video copiati
-  game/images/video frames/<last>.jpg   # ultimi frame (opzionali)
+  game/fan_videos.rpy                          # definizioni image <name> = Movie(...)
+  game/videos/fanvideomod/<video>.webm         # file video copiati
+  game/images/fanvideomod/<last>.jpg           # ultimi frame (opzionali)
 
 Il file fan_videos.rpy usa `init 999` per garantire che le definizioni
 vengano caricate DOPO quelle originali del gioco, indipendentemente
@@ -63,8 +63,8 @@ class FVGenerator:
                 self.game_dir = self.game_path
 
         self.patch_dir = self.game_dir  # file .rpy va direttamente in game/
-        self.videos_dir = self.game_dir / "videos"
-        self.frames_dir = self.game_dir / "images" / "video frames"
+        self.videos_dir = self.game_dir / "videos" / "fanvideomod"
+        self.frames_dir = self.game_dir / "images" / "fanvideomod"
 
         # Rileva la risoluzione del gioco per scalare i video
         self.screen_size = self._detect_screen_size()
@@ -268,7 +268,7 @@ class FVGenerator:
         lines.append("# indipendentemente dall'ordine di caricamento dei file.")
         lines.append("#")
         lines.append("# Per disinstallare: elimina questo file fan_videos.rpy")
-        lines.append("# e i video associati in game/videos/ (vedi lista sotto).")
+        lines.append("# e i video associati in game/videos/fanvideomod/ (vedi lista sotto).")
         lines.append("# ============================================================")
         lines.append("")
         lines.append("init 999:")
@@ -281,11 +281,11 @@ class FVGenerator:
             video_filename = self._unique_video_name(entry.video_path)
             video_dest = self.videos_dir / video_filename
             if not video_dest.exists():
-                self.log(f"Copia video: {entry.video_path.name} -> videos/{video_filename}")
+                self.log(f"Copia video: {entry.video_path.name} -> videos/fanvideomod/{video_filename}")
                 shutil.copy2(entry.video_path, video_dest)
                 copied_videos.append(video_dest)
             else:
-                self.log(f"Video gia' presente: videos/{video_filename}")
+                self.log(f"Video gia' presente: videos/fanvideomod/{video_filename}")
 
             # --- Copia last frame (opzionale) ---
             last_frame_renpy = None
@@ -295,7 +295,7 @@ class FVGenerator:
                 frame_dest = self.frames_dir / frame_filename
                 if not frame_dest.exists():
                     self.log(f"Copia last frame: {entry.last_frame_path.name} "
-                             f"-> images/video frames/{frame_filename}")
+                             f"-> images/fanvideomod/{frame_filename}")
                     shutil.copy2(entry.last_frame_path, frame_dest)
                     copied_frames.append(frame_dest)
                 last_frame_renpy = frame_renpy
@@ -311,7 +311,7 @@ class FVGenerator:
                 self.log(f"  first frame: {start_img} = {first_rel}")
 
             if last_frame_renpy and entry.last_frame_path:
-                frame_rel = f"video frames/{frame_dest.name}"
+                frame_rel = f"fanvideomod/{frame_dest.name}"
                 if self.screen_size:
                     # Scala il last frame alla risoluzione del gioco
                     lines.append(
@@ -323,7 +323,7 @@ class FVGenerator:
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
-            movie_args = [f'play="videos/{video_filename}"']
+            movie_args = [f'play="videos/fanvideomod/{video_filename}"']
             movie_args.append(f'start_image="{start_img}"')
 
             # Scala il video alla risoluzione del gioco se rilevata
