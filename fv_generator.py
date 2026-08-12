@@ -80,14 +80,25 @@ class FVGenerator:
         return name.replace(' ', '_')
 
     def _image_rel_path(self, file_path: Path) -> str:
-        """Restituisce il percorso relativo da usare in un'istruzione image."""
+        """Restituisce il percorso relativo da usare in un'istruzione image.
+
+        Se il file e' dentro game/images/, restituisce il path relativo
+        a images/. Altrimenti cerca di calcolare il path relativo a game/.
+        Se il file non e' dentro game_dir (es. export in cartella temporanea),
+        restituisce solo il nome file dentro images/.
+        """
         images_dir = self.game_dir / "images"
         try:
             if file_path.parent == images_dir or images_dir in file_path.parents:
                 return str(file_path.relative_to(images_dir).as_posix())
         except ValueError:
             pass
-        return str(file_path.relative_to(self.game_dir).as_posix())
+        try:
+            return str(file_path.relative_to(self.game_dir).as_posix())
+        except ValueError:
+            # Il file non e' dentro game_dir (es. export in temp dir):
+            # usa il nome file dentro images/
+            return file_path.name
 
     def _unique_video_name(self, video_path: Path) -> str:
         """Restituisce il nome file per game/videos/.

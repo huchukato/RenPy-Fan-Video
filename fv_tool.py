@@ -1840,6 +1840,10 @@ class FanVideoTool(QMainWindow):
             QMessageBox.warning(self, self.tr['error_title'], self.tr['export_empty'])
             return
 
+        if not self.game_dir or not self.game_dir.exists():
+            QMessageBox.warning(self, self.tr['error_title'], self.tr['invalid_game_path'])
+            return
+
         # Scegli dove salvare lo zip
         default_name = f"fan_video_mod_{self.game_path.name.replace('.app', '')}.zip"
         if self.game_path:
@@ -1860,35 +1864,36 @@ class FanVideoTool(QMainWindow):
             import zipfile
             from datetime import datetime
 
+            # Genera la patch nel gioco reale (come _generate_patch)
+            gen = FVGenerator(self.game_dir, log_callback=lambda m: self._log(m))
+            rpy_path = gen.generate(self.assignments)
+            if not rpy_path or not rpy_path.exists():
+                QMessageBox.warning(self, self.tr['error_title'], self.tr['export_empty'])
+                return
+
+            videos_dir = self.game_dir / "videos"
+            frames_dir = self.game_dir / "images" / "video frames"
+
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                # Genera il patch in una cartella temporanea
-                import tempfile
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    tmp_game = Path(tmpdir) / "game"
-                    tmp_game.mkdir()
-                    (tmp_game / "videos").mkdir()
-                    (tmp_game / "images" / "video frames").mkdir(parents=True)
+                # fan_videos.rpy
+                zf.write(rpy_path, "game/fan_videos.rpy")
+                self._log("Added: game/fan_videos.rpy")
 
-                    # Genera il patch nella cartella temporanea
-                    gen = FVGenerator(tmp_game, log_callback=lambda m: self._log(m))
-                    rpy_path = gen.generate(self.assignments)
-                    if rpy_path and rpy_path.exists():
-                        zf.write(rpy_path, "game/fan_videos.rpy")
-                        self._log("Added: game/fan_videos.rpy")
+                # Video
+                for a in active:
+                    if a.video_path and a.video_path.exists():
+                        video_in_game = videos_dir / a.video_path.name
+                        if video_in_game.exists():
+                            zf.write(video_in_game, f"game/videos/{video_in_game.name}")
+                            self._log(f"Added: game/videos/{video_in_game.name}")
 
-                    # Copia i video
-                    for v in (tmp_game / "videos").iterdir():
-                        if v.is_file():
-                            zf.write(v, f"game/videos/{v.name}")
-                            self._log(f"Added: game/videos/{v.name}")
-
-                    # Copia i last frames
-                    frames_dir = tmp_game / "images" / "video frames"
-                    if frames_dir.exists():
-                        for f in frames_dir.iterdir():
-                            if f.is_file():
-                                zf.write(f, f"game/images/video frames/{f.name}")
-                                self._log(f"Added: game/images/video frames/{f.name}")
+                # Last frames
+                for a in active:
+                    if a.last_frame_path and a.last_frame_path.exists():
+                        lf_in_game = frames_dir / a.last_frame_path.name
+                        if lf_in_game.exists():
+                            zf.write(lf_in_game, f"game/images/video frames/{lf_in_game.name}")
+                            self._log(f"Added: game/images/video frames/{lf_in_game.name}")
 
                 # README con istruzioni
                 readme = (
