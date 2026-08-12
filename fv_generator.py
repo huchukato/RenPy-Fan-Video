@@ -66,9 +66,87 @@ class FVGenerator:
         self.videos_dir = self.game_dir / "videos"
         self.frames_dir = self.game_dir / "images" / "video frames"
 
+        # Rileva la risoluzione del gioco per scalare i video
+        self.screen_size = self._detect_screen_size()
+
     # ------------------------------------------------------------------ #
     # Utility
     # ------------------------------------------------------------------ #
+    def _detect_screen_size(self) -> tuple[int, int] | None:
+        """Rileva la risoluzione del gioco legendo config.screen_width/height.
+
+        Cerca nei .rpy e .rpyc decompilati. Se non trova nulla, prova
+        a dedurre dalla dimensione delle immagini del gioco.
+        """
+        import re
+        w, h = None, None
+        try:
+            for rpy in self.game_dir.rglob("*.rpy"):
+                try:
+                    text = rpy.read_text(encoding='utf-8', errors='replace')
+                except Exception:
+                    continue
+                # Cerca define config.screen_width = NNN
+                mw = re.search(r'config\.screen_width\s*=\s*(\d+)', text)
+                mh = re.search(r'config\.screen_height\s*=\s*(\d+)', text)
+                if mw:
+                    w = int(mw.group(1))
+                if mh:
+                    h = int(mh.group(1))
+                if w and h:
+                    break
+        except Exception:
+            pass
+
+        if w and h:
+            self.log(f"Game resolution: {w}x{h}")
+            return (w, h)
+
+        # Fallback: deduce dalla dimensione di un'immagine del gioco
+        try:
+            images_dir = self.game_dir / "images"
+            if images_dir.exists():
+                import subprocess
+                for img_path in images_dir.rglob("*.jpg"):
+                    if not img_path.is_file():
+                        continue
+                    # Prova ffprobe prima, poi sips (macOS)
+                    try:
+                        result = subprocess.run(
+                            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                             "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                             str(img_path)],
+                            capture_output=True, timeout=10,
+                        )
+                        out = result.stdout.decode().strip()
+                        if out:
+                            parts = out.split(",")
+                            w, h = int(parts[0]), int(parts[1])
+                            self.log(f"Game resolution (from image): {w}x{h}")
+                            return (w, h)
+                    except Exception:
+                        pass
+                    try:
+                        result = subprocess.run(
+                            ["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(img_path)],
+                            capture_output=True, timeout=10,
+                        )
+                        out = result.stdout.decode()
+                        mw = re.search(r'pixelWidth:\s*(\d+)', out)
+                        mh = re.search(r'pixelHeight:\s*(\d+)', out)
+                        if mw and mh:
+                            w, h = int(mw.group(1)), int(mh.group(1))
+                            self.log(f"Game resolution (from image): {w}x{h}")
+                            return (w, h)
+                    except Exception:
+                        pass
+                    break  # basta il primo che funziona
+        except Exception:
+            pass
+
+        self.log("Game resolution: unknown (videos will not be scaled)")
+        return None
+
     @staticmethod
     def _renpy_name_to_filename(name: str) -> str:
         """Converte un nome immagine Ren'Py in nome file safe.
@@ -240,6 +318,10 @@ class FVGenerator:
             # --- Genera riga image ---
             movie_args = [f'play="videos/{video_filename}"']
             movie_args.append(f'start_image="{start_img}"')
+
+            # Scala il video alla risoluzione del gioco se rilevata
+            if self.screen_size:
+                movie_args.append(f'size=({self.screen_size[0]}, {self.screen_size[1]})')
 
             if last_frame_renpy:
                 movie_args.append(f'image="{last_frame_renpy}"')
