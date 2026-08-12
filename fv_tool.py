@@ -1819,10 +1819,38 @@ class FanVideoTool(QMainWindow):
             pass
         return None
 
+    def _clean_video_names(self, video_dir: Path) -> int:
+        """Pulisce i nomi dei file video rimuovendo pattern tipo .jpg_NNNN-audio.
+
+        Es: 123.jpg_00001-audio.webm -> 123.webm
+        Rinomina i file sul posto. Restituisce il numero di file rinominati.
+        """
+        import re
+        count = 0
+        pattern = re.compile(r'\.jpg_\d+-audio')
+        for f in video_dir.iterdir():
+            if not f.is_file():
+                continue
+            if pattern.search(f.name):
+                new_name = pattern.sub('', f.name)
+                new_path = f.parent / new_name
+                if not new_path.exists():
+                    f.rename(new_path)
+                    self._log(f"[Clean] {f.name} -> {new_name}")
+                    count += 1
+                else:
+                    # Se il file pulito esiste già, sovrascrive solo se diverso
+                    if new_path.stat().st_size != f.stat().st_size:
+                        f.rename(new_path)
+                        self._log(f"[Clean] {f.name} -> {new_name}")
+                        count += 1
+        return count
+
     def _auto_associate_videos(self):
         """Scansiona una cartella di video .webm e associa automaticamente.
 
-        Per ogni video, cerca un'assignment con lo stesso nome (safe_name)
+        Prima pulisce i nomi dei file (rimuove .jpg_NNNN-audio etc.),
+        poi per ogni video cerca un'assignment con lo stesso nome (safe_name)
         e la associa. Estrae anche il last frame con ffmpeg.
         """
         if not self.assignments:
@@ -1836,6 +1864,12 @@ class FanVideoTool(QMainWindow):
             return
 
         video_dir = Path(folder)
+
+        # Pulisci i nomi dei file prima del matching
+        renamed = self._clean_video_names(video_dir)
+        if renamed > 0:
+            self._log(f"[Clean] {renamed} files renamed")
+
         # Mappa: safe_name -> video_path
         videos = {}
         for f in video_dir.iterdir():
