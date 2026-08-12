@@ -1871,8 +1871,8 @@ class FanVideoTool(QMainWindow):
                 QMessageBox.warning(self, self.tr['error_title'], self.tr['export_empty'])
                 return
 
-            videos_dir = self.game_dir / "videos"
-            frames_dir = self.game_dir / "images" / "video frames"
+            videos_dir = self.game_dir / "videos" / "fanvideomod"
+            frames_dir = self.game_dir / "images" / "fanvideomod"
 
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 # fan_videos.rpy
