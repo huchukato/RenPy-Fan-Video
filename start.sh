@@ -23,4 +23,15 @@ export UV_LINK_MODE=copy
 
 # Usa il python di sistema (ha Tcl/Tk) invece del bundled uv
 PYTHON_BIN=$(command -v python3 || command -v python)
-uv run --python "$PYTHON_BIN" fv_tool.py
+
+# Tenta di avviare; se il .venv è corrotto, lo rimuove e riprova
+uv run --python "$PYTHON_BIN" fv_tool.py 2>/tmp/fanvideo_err.log || {
+    if grep -q "failed to remove directory\|Directory not empty" /tmp/fanvideo_err.log; then
+        echo "[FanVideo] Corrupted .venv detected, recreating..."
+        rm -rf .venv
+        uv run --python "$PYTHON_BIN" fv_tool.py
+    else
+        cat /tmp/fanvideo_err.log
+        exit 1
+    fi
+}
