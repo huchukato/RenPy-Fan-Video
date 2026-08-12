@@ -312,7 +312,14 @@ class FVGenerator:
 
             if last_frame_renpy and entry.last_frame_path:
                 frame_rel = f"video frames/{frame_dest.name}"
-                lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
+                if self.screen_size:
+                    # Scala il last frame alla risoluzione del gioco
+                    lines.append(
+                        f'    image {last_frame_renpy} = Transform("{frame_rel}", '
+                        f'size={self.screen_size})'
+                    )
+                else:
+                    lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
