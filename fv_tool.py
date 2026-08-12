@@ -129,7 +129,11 @@ TRANSLATIONS = {
         'col_loop': "Loop",
         'col_status': "Status",
         'btn_remove': "Remove selected",
-        'btn_associate': "Associate video...",
+        'btn_associate': "Auto-associate videos...",
+        'btn_associate_tip': "Select a folder of .webm videos; each is matched to an image by name",
+        'auto_assoc_title': "Select videos folder",
+        'auto_assoc_done': "Associated {}/{} videos ({} last frames extracted)",
+        'auto_assoc_nomatch': "No matching videos found in the selected folder",
         'btn_remove_patch': "Remove Patch",
         'btn_remove_patch_tip': "Delete fan_videos.rpy and associated videos from the game",
         'remove_patch_title': "Remove Patch",
@@ -259,7 +263,11 @@ TRANSLATIONS = {
         'col_loop': "Loop",
         'col_status': "Stato",
         'btn_remove': "Rimuovi selezionato",
-        'btn_associate': "Associa video...",
+        'btn_associate': "Auto-associa video...",
+        'btn_associate_tip': "Seleziona una cartella di video .webm; ogni video viene associato all'immagine con lo stesso nome",
+        'auto_assoc_title': "Seleziona cartella video",
+        'auto_assoc_done': "Associati {}/{} video ({} last frame estratti)",
+        'auto_assoc_nomatch': "Nessun video corrispondente nella cartella selezionata",
         'btn_remove_patch': "Rimuovi Patch",
         'btn_remove_patch_tip': "Elimina fan_videos.rpy e i video associati dal gioco",
         'remove_patch_title': "Rimuovi Patch",
@@ -389,7 +397,11 @@ TRANSLATIONS = {
         'col_loop': "Loop",
         'col_status': "Estado",
         'btn_remove': "Eliminar seleccionado",
-        'btn_associate': "Asociar video...",
+        'btn_associate': "Auto-asociar videos...",
+        'btn_associate_tip': "Selecciona una carpeta de videos .webm; cada video se asocia a la imagen con el mismo nombre",
+        'auto_assoc_title': "Seleccionar carpeta de videos",
+        'auto_assoc_done': "Asociados {}/{} videos ({} ultimos frames extraidos)",
+        'auto_assoc_nomatch': "No se encontraron videos coincidentes en la carpeta seleccionada",
         'btn_remove_patch': "Eliminar Patch",
         'btn_remove_patch_tip': "Eliminar fan_videos.rpy y los videos asociados del juego",
         'remove_patch_title': "Eliminar Patch",
@@ -1060,7 +1072,7 @@ class FanVideoTool(QMainWindow):
         self.tbl_patch.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.tbl_patch.setSelectionBehavior(QTableWidget.SelectRows)
         self.tbl_patch.setSelectionMode(QTableWidget.SingleSelection)
-        self.tbl_patch.itemDoubleClicked.connect(self._associate_video_for_row)
+        self.tbl_patch.itemDoubleClicked.connect(self._on_patch_double_click)
         self.tbl_patch.itemSelectionChanged.connect(self._on_patch_row_changed)
         left.addWidget(self.tbl_patch)
 
@@ -1068,7 +1080,7 @@ class FanVideoTool(QMainWindow):
         self.btn_remove = QPushButton("")
         self.btn_remove.clicked.connect(self._remove_assignment)
         self.btn_associate = QPushButton("")
-        self.btn_associate.clicked.connect(self._associate_video_for_selected)
+        self.btn_associate.clicked.connect(self._auto_associate_videos)
         self.btn_remove_patch = QPushButton("")
         self.btn_remove_patch.setStyleSheet(
             "QPushButton { padding: 6px 12px; "
@@ -1168,6 +1180,7 @@ class FanVideoTool(QMainWindow):
         )
         self.btn_remove.setText(tr['btn_remove'])
         self.btn_associate.setText(tr['btn_associate'])
+        self.btn_associate.setToolTip(tr['btn_associate_tip'])
         self.btn_remove_patch.setText(tr['btn_remove_patch'])
         self.btn_remove_patch.setToolTip(tr['btn_remove_patch_tip'])
         self.btn_generate.setText(tr['btn_generate'])
@@ -1688,6 +1701,19 @@ class FanVideoTool(QMainWindow):
     # ------------------------------------------------------------------ #
     # Patch
     # ------------------------------------------------------------------ #
+    def _on_patch_double_click(self, item):
+        """Double-click sulla tabella patch: toggle loop se colonna 3."""
+        col = self.tbl_patch.column(item)
+        if col != 3:  # col_loop
+            return
+        row = self.tbl_patch.row(item)
+        if row < 0 or row >= len(self.assignments):
+            return
+        entry = self.assignments[row]
+        entry.loop = not entry.loop
+        self._populate_patch()
+        self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
+
     def _on_patch_row_changed(self):
         """Mostra la preview dell'immagine della riga selezionata nel tab Patch."""
         row = self.tbl_patch.currentRow()
@@ -1758,54 +1784,114 @@ class FanVideoTool(QMainWindow):
         # Auto-save sessione a ogni modifica della tabella patch
         self._save_session()
 
-    def _associate_video_for_selected(self):
-        row = self.tbl_patch.currentRow()
-        if row < 0:
+    def _extract_last_frame_for_video(self, video_path: Path) -> Path | None:
+        """Estrae l'ultimo frame da un video usando ffmpeg.
+
+        Salva il frame in ~/FanVideoProjects/_last_frames/<stem>_last.jpg.
+        """
+        lf_dir = Path.home() / "FanVideoProjects" / "_last_frames"
+        lf_dir.mkdir(parents=True, exist_ok=True)
+
+        stem = video_path.stem
+        lf_path = lf_dir / f"{stem}_last.jpg"
+
+        if lf_path.exists() and lf_path.stat().st_size > 0:
+            return lf_path
+
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-sseof", "-0.1", "-i", str(video_path),
+                 "-frames:v", "1", "-q:v", "2", str(lf_path)],
+                capture_output=True, timeout=30,
+            )
+            if lf_path.exists() and lf_path.stat().st_size > 0:
+                return lf_path
+            # Fallback
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-i", str(video_path),
+                 "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(lf_path)],
+                capture_output=True, timeout=30,
+            )
+            if lf_path.exists() and lf_path.stat().st_size > 0:
+                return lf_path
+        except Exception:
+            pass
+        return None
+
+    def _auto_associate_videos(self):
+        """Scansiona una cartella di video .webm e associa automaticamente.
+
+        Per ogni video, cerca un'assignment con lo stesso nome (safe_name)
+        e la associa. Estrae anche il last frame con ffmpeg.
+        """
+        if not self.assignments:
             QMessageBox.information(self, self.tr['title'], self.tr['select_patch_row'])
             return
-        self._associate_video_for_row(self.tbl_patch.item(row, 0))
 
-    def _associate_video_for_row(self, _item):
-        row = self.tbl_patch.currentRow()
-        if row < 0 or row >= len(self.assignments):
-            return
-        entry = self.assignments[row]
-
-        img = None
-        for i in self.images:
-            if i.name == entry.image_name:
-                img = i
-                break
-
-        if img is None:
-            img = StaticImage(name=entry.image_name, file_path=entry.start_image_path, used_in=[])
-
-        dlg = AssociateDialog(img, self.tr, self)
-        dlg.setWindowTitle(self.tr['dlg_associate_title'].format(entry.image_name))
-
-        if dlg.exec() != QDialog.Accepted:
+        folder = QFileDialog.getExistingDirectory(
+            self, self.tr['auto_assoc_title']
+        )
+        if not folder:
             return
 
-        safe = self._safe_name(entry.image_name)
-        last_name = f"{safe}_last_frame" if dlg.last_frame_path else None
+        video_dir = Path(folder)
+        # Mappa: safe_name -> video_path
+        videos = {}
+        for f in video_dir.iterdir():
+            if f.is_file() and f.suffix.lower() == ".webm":
+                videos[self._safe_name(f.stem)] = f
 
-        entry.video_path = dlg.video_path
-        entry.last_frame_path = dlg.last_frame_path
-        entry.last_frame_name = last_name
-        entry.loop = dlg.loop
+        if not videos:
+            QMessageBox.information(self, self.tr['title'], self.tr['auto_assoc_nomatch'])
+            return
 
-        if self.project is not None:
-            try:
-                self.project.associate_video(
-                    entry.image_name,
-                    cast(Path, dlg.video_path),
-                    dlg.last_frame_path,
-                    dlg.loop,
-                )
-            except Exception:
-                pass
+        # Mappa assignments: safe_name -> index
+        assignment_map = {}
+        for i, a in enumerate(self.assignments):
+            assignment_map[self._safe_name(a.image_name)] = i
+
+        matched = 0
+        last_frames = 0
+        for vname, vpath in videos.items():
+            if vname in assignment_map:
+                idx = assignment_map[vname]
+                entry = self.assignments[idx]
+
+                # Estrai last frame
+                lf_path = self._extract_last_frame_for_video(vpath)
+                if lf_path:
+                    last_frames += 1
+
+                safe = self._safe_name(entry.image_name)
+                last_name = f"{safe}_last_frame" if lf_path else None
+
+                entry.video_path = vpath
+                entry.last_frame_path = lf_path
+                entry.last_frame_name = last_name
+
+                # Salva nel project
+                if self.project is not None:
+                    try:
+                        self.project.associate_video(
+                            entry.image_name,
+                            vpath,
+                            lf_path,
+                            entry.loop,
+                        )
+                    except Exception:
+                        pass
+
+                matched += 1
+                self._log(f"[Auto] {entry.image_name} <- {vpath.name}")
 
         self._populate_patch()
+        self._log(f"[Auto] Done: {matched}/{len(videos)} videos matched, "
+                  f"{last_frames} last frames extracted")
+        QMessageBox.information(
+            self, self.tr['export_done_title'],
+            self.tr['auto_assoc_done'].format(matched, len(videos), last_frames)
+        )
 
     def _remove_assignment(self):
         row = self.tbl_patch.currentRow()
