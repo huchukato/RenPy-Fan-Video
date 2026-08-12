@@ -1009,8 +1009,11 @@ class FanVideoTool(QMainWindow):
         self.btn_export.clicked.connect(self._export_image)
         self.btn_add = QPushButton("")
         self.btn_add.clicked.connect(self._add_to_patch)
+        self.btn_sources = QPushButton("")
+        self.btn_sources.clicked.connect(self._open_sources_folder)
         btn_row.addWidget(self.btn_export)
         btn_row.addWidget(self.btn_add)
+        btn_row.addWidget(self.btn_sources)
         left.addLayout(btn_row)
 
         hbox.addLayout(left, 2)
@@ -1152,6 +1155,8 @@ class FanVideoTool(QMainWindow):
         self.btn_export.setText(tr['btn_export'])
         self.btn_export.setToolTip(tr['btn_export_tip'])
         self.btn_add.setText(tr['btn_add_patch'])
+        self.btn_sources.setText(tr['btn_open_sources'])
+        self.btn_sources.setToolTip(tr['btn_open_sources'])
         self.lbl_preview_title.setText(tr['preview'])
         self.lbl_info.setText(tr['select_image_first'])
 
@@ -1667,17 +1672,7 @@ class FanVideoTool(QMainWindow):
             )
         )
         self._populate_patch()
-
-        msg = self.tr['export_done_msg'].format(dest)
-        box = QMessageBox(self)
-        box.setWindowTitle(self.tr['export_done_title'])
-        box.setText(msg)
-        box.setIcon(QMessageBox.Information)
-        btn_open = box.addButton(self.tr['btn_open_sources'], QMessageBox.AcceptRole)
-        box.addButton(self.tr['btn_close'], QMessageBox.RejectRole)
-        box.exec()
-        if box.clickedButton() is btn_open:
-            self._open_folder(dest.parent)
+        self._log(f"[Export] {dest.name} -> sources/")
 
     def _load_pixmap(self, path: Path | None, size: int) -> QPixmap | None:
         try:
@@ -1925,6 +1920,18 @@ class FanVideoTool(QMainWindow):
                 subprocess.Popen(["xdg-open", str(path)])
         except Exception as e:
             self._log(f"Cannot open folder: {e}")
+
+    def _open_sources_folder(self):
+        """Apre la cartella sources/ del progetto corrente."""
+        if not self.game_path:
+            return
+        if self.project is None:
+            self.project = FVProject(self.game_path)
+            self.project.load()
+        sources = self.project.sources_dir
+        if not sources.exists():
+            sources.mkdir(parents=True, exist_ok=True)
+        self._open_folder(sources)
 
     def _export_mod(self):
         """Esporta la patch come zip condivisibile.
