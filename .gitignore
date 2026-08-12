@@ -34,3 +34,6 @@ build_*.sh
 
 # Sessione/progetto locale
 FanVideoProjects/
+
+# File locali vari (post forum, note, etc.)
+F95.md
