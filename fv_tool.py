@@ -1003,12 +1003,8 @@ class FanVideoTool(QMainWindow):
         self.cmb_file_filter.setMinimumWidth(200)
         self.cmb_file_filter.currentIndexChanged.connect(self._apply_filter)
 
-        self.cmb_filter = QComboBox()
-        self.cmb_filter.currentIndexChanged.connect(self._apply_filter)
-
         filter_box.addWidget(self.txt_filter, 1)
         filter_box.addWidget(self.cmb_file_filter)
-        filter_box.addWidget(self.cmb_filter)
         left.addLayout(filter_box)
 
         self.tbl_images = QTableWidget()
@@ -1167,8 +1163,6 @@ class FanVideoTool(QMainWindow):
 
         # Tab 2
         self.txt_filter.setPlaceholderText(tr['search_placeholder'])
-        self.cmb_filter.clear()
-        self.cmb_filter.addItems([tr['filter_all'], tr['filter_static'], tr['filter_movie']])
         # Aggiorna il file filter combo mantenendo la selezione
         self._repopulate_file_filter()
         self.tbl_images.setHorizontalHeaderLabels(
@@ -1573,7 +1567,6 @@ class FanVideoTool(QMainWindow):
 
     def _filtered_images(self) -> list[StaticImage]:
         text = self.txt_filter.text().lower()
-        mode = self.cmb_filter.currentIndex()
         file_idx = self.cmb_file_filter.currentIndex()
         file_filter = None
         if file_idx > 0:
@@ -1581,12 +1574,10 @@ class FanVideoTool(QMainWindow):
 
         out: list[StaticImage] = []
         for img in self.images:
-            if mode == 1 and img.already_movie:
-                continue
-            if mode == 2 and not img.already_movie:
+            # Mostra solo immagini statiche (non già animate)
+            if img.already_movie:
                 continue
             if file_filter:
-                # Controlla se l'immagine è usata in questo file
                 found = False
                 for rpy, _ in img.used_in:
                     fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
