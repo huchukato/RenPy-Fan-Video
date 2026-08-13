@@ -314,9 +314,11 @@ class FVGenerator:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
                 if self.screen_size:
                     # Scala il last frame alla risoluzione del gioco
+                    # usando im.Scale che ridimensiona l'immagine
+                    sw, sh = self.screen_size
                     lines.append(
-                        f'    image {last_frame_renpy} = Transform("{frame_rel}", '
-                        f'size={self.screen_size})'
+                        f'    image {last_frame_renpy} = im.Scale("{frame_rel}", '
+                        f'{sw}, {sh})'
                     )
                 else:
                     lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
