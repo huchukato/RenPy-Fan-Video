@@ -86,6 +86,7 @@ TRANSLATIONS = {
         'filter_all': "All",
         'filter_static': "Static only",
         'filter_movie': "Already animated",
+        'filter_file_all': "All files",
         'col_name': "Name",
         'col_source': "Source",
         'col_line': "Line",
@@ -222,6 +223,7 @@ TRANSLATIONS = {
         'filter_all': "Tutte",
         'filter_static': "Solo statiche",
         'filter_movie': "Gia' animate",
+        'filter_file_all': "Tutti i file",
         'col_name': "Nome",
         'col_source': "Sorgente",
         'col_line': "Riga",
@@ -354,6 +356,7 @@ TRANSLATIONS = {
         'filter_all': "Todas",
         'filter_static': "Solo estaticas",
         'filter_movie': "Ya animadas",
+        'filter_file_all': "Todos los archivos",
         'col_name': "Nombre",
         'col_source': "Origen",
         'col_line': "Linea",
@@ -996,10 +999,15 @@ class FanVideoTool(QMainWindow):
         self.txt_filter = QLineEdit()
         self.txt_filter.textChanged.connect(self._apply_filter)
 
+        self.cmb_file_filter = QComboBox()
+        self.cmb_file_filter.setMinimumWidth(200)
+        self.cmb_file_filter.currentIndexChanged.connect(self._apply_filter)
+
         self.cmb_filter = QComboBox()
         self.cmb_filter.currentIndexChanged.connect(self._apply_filter)
 
         filter_box.addWidget(self.txt_filter, 1)
+        filter_box.addWidget(self.cmb_file_filter)
         filter_box.addWidget(self.cmb_filter)
         left.addLayout(filter_box)
 
@@ -1161,6 +1169,8 @@ class FanVideoTool(QMainWindow):
         self.txt_filter.setPlaceholderText(tr['search_placeholder'])
         self.cmb_filter.clear()
         self.cmb_filter.addItems([tr['filter_all'], tr['filter_static'], tr['filter_movie']])
+        # Aggiorna il file filter combo mantenendo la selezione
+        self._repopulate_file_filter()
         self.tbl_images.setHorizontalHeaderLabels(
             ["", tr['col_name'], tr['col_source'], tr['col_line'], tr['col_movie']]
         )
@@ -1454,6 +1464,7 @@ class FanVideoTool(QMainWindow):
         self.game_dir = ext.output_dir
 
         self.images = images
+        self._repopulate_file_filter()
         self._populate_gallery()
 
         # Se ci sono assignments ripristinate, assicurati che lo start_image_path
@@ -1538,9 +1549,35 @@ class FanVideoTool(QMainWindow):
 
         self.tbl_images.resizeColumnsToContents()
 
+    def _repopulate_file_filter(self):
+        """Ripopola il combo dei file .rpy mantenendo la selezione."""
+        prev = self.cmb_file_filter.currentIndex()
+        prev_text = self.cmb_file_filter.currentText() if prev > 0 else None
+        self.cmb_file_filter.blockSignals(True)
+        self.cmb_file_filter.clear()
+        self.cmb_file_filter.addItem(self.tr['filter_file_all'])
+        # Raccogli i file .rpy da cui provengono le immagini
+        files = set()
+        for img in self.images:
+            for rpy, _ in img.used_in:
+                fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
+                files.add(fname)
+        for fname in sorted(files):
+            self.cmb_file_filter.addItem(fname)
+        # Ripristina selezione
+        if prev_text and prev > 0:
+            idx = self.cmb_file_filter.findText(prev_text)
+            if idx >= 0:
+                self.cmb_file_filter.setCurrentIndex(idx)
+        self.cmb_file_filter.blockSignals(False)
+
     def _filtered_images(self) -> list[StaticImage]:
         text = self.txt_filter.text().lower()
         mode = self.cmb_filter.currentIndex()
+        file_idx = self.cmb_file_filter.currentIndex()
+        file_filter = None
+        if file_idx > 0:
+            file_filter = self.cmb_file_filter.currentText()
 
         out: list[StaticImage] = []
         for img in self.images:
@@ -1548,6 +1585,16 @@ class FanVideoTool(QMainWindow):
                 continue
             if mode == 2 and not img.already_movie:
                 continue
+            if file_filter:
+                # Controlla se l'immagine è usata in questo file
+                found = False
+                for rpy, _ in img.used_in:
+                    fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
+                    if fname == file_filter:
+                        found = True
+                        break
+                if not found:
+                    continue
             if not text or text in img.name.lower():
                 out.append(img)
         return out
