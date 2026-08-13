@@ -1008,12 +1008,11 @@ class FanVideoTool(QMainWindow):
         left.addLayout(filter_box)
 
         self.tbl_images = QTableWidget()
-        self.tbl_images.setColumnCount(5)
+        self.tbl_images.setColumnCount(4)
         self.tbl_images.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.tbl_images.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.tbl_images.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.tbl_images.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.tbl_images.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.tbl_images.setSelectionBehavior(QTableWidget.SelectRows)
         self.tbl_images.setSelectionMode(QTableWidget.SingleSelection)
         self.tbl_images.itemSelectionChanged.connect(self._on_image_selected)
@@ -1166,7 +1165,7 @@ class FanVideoTool(QMainWindow):
         # Aggiorna il file filter combo mantenendo la selezione
         self._repopulate_file_filter()
         self.tbl_images.setHorizontalHeaderLabels(
-            ["", tr['col_name'], tr['col_source'], tr['col_line'], tr['col_movie']]
+            ["", tr['col_name'], tr['col_source'], tr['col_line']]
         )
         self.btn_export.setText(tr['btn_export'])
         self.btn_export.setToolTip(tr['btn_export_tip'])
@@ -1535,11 +1534,6 @@ class FanVideoTool(QMainWindow):
             line_item.setData(Qt.UserRole, img)
             line_item.setFlags(line_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 3, line_item)
-
-            movie_item = QTableWidgetItem(self.tr['yes'] if img.already_movie else self.tr['no'])
-            movie_item.setData(Qt.UserRole, img)
-            movie_item.setFlags(movie_item.flags() & ~Qt.ItemIsEditable)
-            self.tbl_images.setItem(i, 4, movie_item)
 
         self.tbl_images.resizeColumnsToContents()
 
