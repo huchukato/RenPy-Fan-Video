@@ -2197,10 +2197,17 @@ class FanVideoTool(QMainWindow):
                 # Last frames
                 for a in active:
                     if a.last_frame_path and a.last_frame_path.exists():
-                        lf_in_game = frames_dir / a.last_frame_path.name
-                        if lf_in_game.exists():
+                        # Il generatore puo' aver rinominato il frame
+                        # (es. _fan2, _fan3) per evitare collisioni.
+                        # Cerca il file effettivo in frames_dir matching lo stem.
+                        stem = a.last_frame_path.stem
+                        matches = sorted(frames_dir.glob(f"{stem}*.jpg"))
+                        if matches:
+                            lf_in_game = matches[0]
                             zf.write(lf_in_game, f"game/images/fanvideomod/{lf_in_game.name}")
                             self._log(f"Added: game/images/fanvideomod/{lf_in_game.name}")
+                        else:
+                            self._log(f"[WARN] Last frame non trovato in game dir: {stem}")
 
                 # README con istruzioni
                 readme = (
