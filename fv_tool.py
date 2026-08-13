@@ -822,7 +822,7 @@ class FanVideoTool(QMainWindow):
                 start_image_path=start_p,
                 last_frame_path=lf_p,
                 last_frame_name=a_data.get("last_frame_name"),
-                loop=a_data.get("loop", True),
+                loop=a_data.get("loop", False),
             ))
 
         # Fallback: se la session.json non ha assignments ma esiste un
@@ -1382,7 +1382,7 @@ class FanVideoTool(QMainWindow):
                         start_image_path=start_p,
                         last_frame_path=lf_p,
                         last_frame_name=a_data.get("last_frame_name"),
-                        loop=a_data.get("loop", True),
+                        loop=a_data.get("loop", False),
                     ))
                 n_total = len(self.assignments)
                 n_with_video = sum(1 for a in self.assignments if a.has_video)
@@ -1724,7 +1724,7 @@ class FanVideoTool(QMainWindow):
                 start_image_path=img.file_path,
                 last_frame_path=None,
                 last_frame_name=None,
-                loop=True,
+                loop=False,
             )
         )
         self._populate_patch()
