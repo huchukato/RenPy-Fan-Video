@@ -1838,28 +1838,32 @@ class FanVideoTool(QMainWindow):
         stem = video_path.stem
         lf_path = lf_dir / f"{stem}_last.jpg"
 
-        if lf_path.exists() and lf_path.stat().st_size > 0:
-            return lf_path
-
         try:
             import subprocess
+            # Forza estrazione: -y sovrascrive file esistente
             result = subprocess.run(
                 ["ffmpeg", "-y", "-sseof", "-0.1", "-i", str(video_path),
                  "-frames:v", "1", "-q:v", "2", str(lf_path)],
                 capture_output=True, timeout=30,
             )
             if lf_path.exists() and lf_path.stat().st_size > 0:
+                self._log(f"[LastFrame] Extracted: {lf_path.name}")
                 return lf_path
-            # Fallback
+            # Fallback: prova con select=last
+            self._log(f"[LastFrame] First method failed, trying fallback...")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-i", str(video_path),
                  "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(lf_path)],
                 capture_output=True, timeout=30,
             )
             if lf_path.exists() and lf_path.stat().st_size > 0:
+                self._log(f"[LastFrame] Extracted (fallback): {lf_path.name}")
                 return lf_path
-        except Exception:
-            pass
+            # Log ffmpeg error
+            stderr = result.stderr.decode()[-500:] if result.stderr else ""
+            self._log(f"[LastFrame] FAILED for {video_path.name}: {stderr}")
+        except Exception as e:
+            self._log(f"[LastFrame] Exception: {e}")
         return None
 
     def _clean_video_names(self, video_dir: Path) -> int:
@@ -1946,6 +1950,10 @@ class FanVideoTool(QMainWindow):
                 entry.video_path = vpath
                 entry.last_frame_path = lf_path
                 entry.last_frame_name = last_name
+                # Forza loop=False: con last frame serve play-once
+                if entry.loop:
+                    entry.loop = False
+                    self._log(f"[Auto] {entry.image_name}: loop forced OFF (has last frame)")
 
                 # Salva nel project
                 if self.project is not None:
