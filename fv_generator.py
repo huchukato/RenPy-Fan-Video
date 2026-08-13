@@ -190,26 +190,28 @@ class FVGenerator:
     def _unique_frame_name(self, frame_path: Path) -> tuple[str, str]:
         """Restituisce (nome_file, nome_renpy) univoco per video frames.
 
+        Usa il nome originale del file, sovrascrivendo eventuali file
+        preesistenti da generazioni precedenti. Aggiunge _fanN solo se
+        due entry diverse nella stessa generazione producono lo stesso nome.
+
         Returns:
             (filename, renpy_name) dove renpy_name e' il nome senza
             estensione da usare come `image="..."` nel Movie.
         """
-        # Usa lo stem del file come nome Ren'Py, sanitizzato
-        # (i nomi image di Ren'Py non possono contenere . o - o altri caratteri speciali)
         renpy_name = self._safe_renpy_name(frame_path.stem)
         target_name = frame_path.name
-        target = self.frames_dir / target_name
-        if not target.exists():
-            return target_name, renpy_name
-        stem = frame_path.stem
-        suffix = frame_path.suffix
-        idx = 2
-        while target.exists():
+
+        # Collisione con altro frame già usato in questa stessa generazione
+        if target_name in self._used_frame_names:
+            stem = frame_path.stem
+            suffix = frame_path.suffix
+            idx = 2
+            while f"{stem}_fan{idx}{suffix}" in self._used_frame_names:
+                idx += 1
             target_name = f"{stem}_fan{idx}{suffix}"
-            target = self.frames_dir / target_name
-            idx += 1
-        # Il nome Ren'Py segue il nome file (senza ext), sanitizzato
-        renpy_name = self._safe_renpy_name(Path(target_name).stem)
+            renpy_name = self._safe_renpy_name(Path(target_name).stem)
+
+        self._used_frame_names.add(target_name)
         return target_name, renpy_name
 
     @staticmethod
@@ -255,6 +257,7 @@ class FVGenerator:
         # Crea le directory necessarie
         self.videos_dir.mkdir(parents=True, exist_ok=True)
         self.frames_dir.mkdir(parents=True, exist_ok=True)
+        self._used_frame_names = set()
 
         lines = []
         lines.append("# ============================================================")
@@ -293,11 +296,10 @@ class FVGenerator:
                 frame_filename, frame_renpy = self._unique_frame_name(
                     entry.last_frame_path)
                 frame_dest = self.frames_dir / frame_filename
-                if not frame_dest.exists():
-                    self.log(f"Copia last frame: {entry.last_frame_path.name} "
-                             f"-> images/fanvideomod/{frame_filename}")
-                    shutil.copy2(entry.last_frame_path, frame_dest)
-                    copied_frames.append(frame_dest)
+                self.log(f"Copia last frame: {entry.last_frame_path.name} "
+                         f"-> images/fanvideomod/{frame_filename}")
+                shutil.copy2(entry.last_frame_path, frame_dest)
+                copied_frames.append(frame_dest)
                 last_frame_renpy = frame_renpy
             elif entry.last_frame_name:
                 # Nome fornito senza file (riferimento a immagine esistente)
@@ -314,11 +316,10 @@ class FVGenerator:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
                 if self.screen_size:
                     # Scala il last frame alla risoluzione del gioco
-                    # usando im.Scale che ridimensiona l'immagine
                     sw, sh = self.screen_size
                     lines.append(
-                        f'    image {last_frame_renpy} = im.Scale("{frame_rel}", '
-                        f'{sw}, {sh})'
+                        f'    image {last_frame_renpy} = Transform("{frame_rel}", '
+                        f'size=({sw}, {sh}))'
                     )
                 else:
                     lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
