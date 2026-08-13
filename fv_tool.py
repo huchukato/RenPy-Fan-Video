@@ -1831,6 +1831,7 @@ class FanVideoTool(QMainWindow):
         """Estrae l'ultimo frame da un video usando ffmpeg.
 
         Salva il frame in ~/FanVideoProjects/_last_frames/<stem>_last.jpg.
+        Se esiste già un last frame valido, lo riutilizza.
         """
         lf_dir = Path.home() / "FanVideoProjects" / "_last_frames"
         lf_dir.mkdir(parents=True, exist_ok=True)
@@ -1838,27 +1839,37 @@ class FanVideoTool(QMainWindow):
         stem = video_path.stem
         lf_path = lf_dir / f"{stem}_last.jpg"
 
+        # Se esiste già un last frame valido, riutilizzalo
+        if lf_path.exists() and lf_path.stat().st_size > 0:
+            return lf_path
+
         try:
             import subprocess
-            # Forza estrazione: -y sovrascrive file esistente
+            # Estrae in un file temporaneo per non cancellare eventuali vecchi
+            tmp_path = lf_path.with_suffix(".tmp.jpg")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-sseof", "-0.1", "-i", str(video_path),
-                 "-frames:v", "1", "-q:v", "2", str(lf_path)],
+                 "-frames:v", "1", "-q:v", "2", str(tmp_path)],
                 capture_output=True, timeout=30,
             )
-            if lf_path.exists() and lf_path.stat().st_size > 0:
+            if tmp_path.exists() and tmp_path.stat().st_size > 0:
+                tmp_path.rename(lf_path)
                 self._log(f"[LastFrame] Extracted: {lf_path.name}")
                 return lf_path
             # Fallback: prova con select=last
             self._log(f"[LastFrame] First method failed, trying fallback...")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-i", str(video_path),
-                 "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(lf_path)],
+                 "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(tmp_path)],
                 capture_output=True, timeout=30,
             )
-            if lf_path.exists() and lf_path.stat().st_size > 0:
+            if tmp_path.exists() and tmp_path.stat().st_size > 0:
+                tmp_path.rename(lf_path)
                 self._log(f"[LastFrame] Extracted (fallback): {lf_path.name}")
                 return lf_path
+            # Pulisci tmp se esiste ma è vuoto
+            if tmp_path.exists():
+                tmp_path.unlink()
             # Log ffmpeg error
             stderr = result.stderr.decode()[-500:] if result.stderr else ""
             self._log(f"[LastFrame] FAILED for {video_path.name}: {stderr}")
