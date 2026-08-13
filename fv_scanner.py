@@ -307,6 +307,11 @@ class FVScanner:
 
             file_path = self._resolve_image_file(name)
 
+            # Salta immagini non risolte (bottoni, icone UI, displayable composti)
+            # che non hanno un file su disco e non possono essere sostituite
+            if file_path is None:
+                continue
+
             images.append(StaticImage(
                 name=name,
                 file_path=file_path,
