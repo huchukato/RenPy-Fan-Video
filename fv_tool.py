@@ -672,7 +672,22 @@ class FanVideoTool(QMainWindow):
         self._build_ui()
         self._apply_style()
         self._retranslate_ui()
-        self._restore_session()
+        # Ripristina solo la lingua dall'ultima sessione (non il gioco)
+        self._restore_lang_only()
+
+    def _restore_lang_only(self):
+        """Ripristina solo la lingua dall'ultima sessione globale."""
+        global_file = self._global_session_path()
+        if not global_file.exists():
+            return
+        try:
+            data = json.loads(global_file.read_text(encoding="utf-8"))
+            lang = data.get("lang", "en")
+            if lang in TRANSLATIONS and lang != self.lang:
+                idx = {"en": 0, "it": 1, "es": 2}.get(lang, 0)
+                self.cmb_lang.setCurrentIndex(idx)
+        except Exception:
+            pass
 
     def _t(self, key: str, *args) -> str:
         """Helper per tradurre con format args."""
