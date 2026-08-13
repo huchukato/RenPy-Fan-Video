@@ -1854,9 +1854,12 @@ class FanVideoTool(QMainWindow):
         stem = video_path.stem
         lf_path = lf_dir / f"{stem}_last.jpg"
 
-        # Se esiste già un last frame valido, riutilizzalo
+        # Se esiste già un last frame valido, riutilizzalo SOLO se il
+        # video non è stato modificato dopo l'estrazione del last frame
         if lf_path.exists() and lf_path.stat().st_size > 0:
-            return lf_path
+            if video_path.stat().st_mtime <= lf_path.stat().st_mtime:
+                return lf_path
+            self._log(f"[LastFrame] Video changed, re-extracting: {video_path.name}")
 
         try:
             import subprocess
