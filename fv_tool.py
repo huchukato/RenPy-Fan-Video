@@ -1042,7 +1042,7 @@ class FanVideoTool(QMainWindow):
         self.lbl_preview.setStyleSheet("background-color: #16263a; border: 1px solid #2a4055; border-radius: 4px;")
         self.lbl_preview.setScaledContents(False)
         right.addWidget(self.lbl_preview_title)
-        right.addWidget(self.lbl_preview)
+        right.addWidget(self.lbl_preview, 1)  # si espande con la finestra
 
         self.lbl_info = QLabel("")
         self.lbl_info.setWordWrap(True)
@@ -1129,7 +1129,7 @@ class FanVideoTool(QMainWindow):
         )
         self.lbl_patch_preview.setScaledContents(False)
         right.addWidget(self.lbl_patch_preview_title)
-        right.addWidget(self.lbl_patch_preview)
+        right.addWidget(self.lbl_patch_preview, 1)  # si espande con la finestra
 
         self.lbl_patch_preview_info = QLabel("")
         self.lbl_patch_preview_info.setWordWrap(True)
@@ -1587,6 +1587,16 @@ class FanVideoTool(QMainWindow):
     def _apply_filter(self):
         self._populate_gallery()
 
+    def resizeEvent(self, event):
+        """Ridisegna il preview quando la finestra cambia dimensione."""
+        super().resizeEvent(event)
+        # Ridisegna preview gallery se c'è una riga selezionata
+        if self.tbl_images.currentRow() >= 0:
+            self._on_image_selected()
+        # Ridisegna preview patch se c'è una riga selezionata
+        if self.tbl_patch.currentRow() >= 0:
+            self._on_patch_row_changed()
+
     def _on_image_selected(self):
         row = self.tbl_images.currentRow()
         if row < 0:
@@ -1600,7 +1610,8 @@ class FanVideoTool(QMainWindow):
         if img is None:
             return
 
-        pix = self._load_pixmap(img.file_path, 300)
+        preview_size = max(self.lbl_preview.width(), self.lbl_preview.height())
+        pix = self._load_pixmap(img.file_path, preview_size)
         if pix:
             scaled = pix.scaled(
                 self.lbl_preview.size(),
