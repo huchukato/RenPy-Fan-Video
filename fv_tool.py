@@ -1090,6 +1090,7 @@ class FanVideoTool(QMainWindow):
         self.tbl_patch.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.tbl_patch.setSelectionBehavior(QTableWidget.SelectRows)
         self.tbl_patch.setSelectionMode(QTableWidget.SingleSelection)
+        self.tbl_patch.setSortingEnabled(True)
         self.tbl_patch.itemDoubleClicked.connect(self._on_patch_double_click)
         self.tbl_patch.itemSelectionChanged.connect(self._on_patch_row_changed)
         left.addWidget(self.tbl_patch)
@@ -1767,7 +1768,13 @@ class FanVideoTool(QMainWindow):
         row = self.tbl_patch.row(item)
         if row < 0 or row >= len(self.assignments):
             return
-        entry = self.assignments[row]
+        # Con sorting attivo, row e' l'indice visivo: leggi il nome dalla cella
+        name_item = self.tbl_patch.item(row, 0)
+        if not name_item:
+            return
+        entry = next((a for a in self.assignments if a.image_name == name_item.text()), None)
+        if not entry:
+            return
         entry.loop = not entry.loop
         self._populate_patch()
         self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
@@ -1781,7 +1788,13 @@ class FanVideoTool(QMainWindow):
             self.lbl_patch_preview_info.setText(self.tr['patch_no_selection'])
             return
 
-        entry = self.assignments[row]
+        # Con sorting attivo, row e' l'indice visivo: leggi il nome dalla cella
+        name_item = self.tbl_patch.item(row, 0)
+        if not name_item:
+            return
+        entry = next((a for a in self.assignments if a.image_name == name_item.text()), None)
+        if not entry:
+            return
         self.lbl_patch_preview_title.setText(
             self.tr['preview'] + ": " + entry.image_name
         )
@@ -1820,6 +1833,7 @@ class FanVideoTool(QMainWindow):
         )
 
     def _populate_patch(self):
+        self.tbl_patch.setSortingEnabled(False)
         self.tbl_patch.setRowCount(len(self.assignments))
         for i, a in enumerate(self.assignments):
             self.tbl_patch.setItem(i, 0, QTableWidgetItem(a.image_name))
@@ -1839,6 +1853,7 @@ class FanVideoTool(QMainWindow):
                 status_item = QTableWidgetItem(self.tr['status_pending'])
                 status_item.setForeground(Qt.yellow)
             self.tbl_patch.setItem(i, 4, status_item)
+        self.tbl_patch.setSortingEnabled(True)
         # Auto-save sessione a ogni modifica della tabella patch
         self._save_session()
 
@@ -2007,7 +2022,14 @@ class FanVideoTool(QMainWindow):
         row = self.tbl_patch.currentRow()
         if row < 0:
             return
-        del self.assignments[row]
+        # Con sorting attivo, row e' visivo: trova l'entry dal nome
+        name_item = self.tbl_patch.item(row, 0)
+        if not name_item:
+            return
+        for i, a in enumerate(self.assignments):
+            if a.image_name == name_item.text():
+                del self.assignments[i]
+                break
         self._populate_patch()  # chiama anche _save_session
 
     def _generate_patch(self):
