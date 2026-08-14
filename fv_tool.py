@@ -1971,14 +1971,16 @@ class FanVideoTool(QMainWindow):
         return None
 
     def _clean_video_names(self, video_dir: Path) -> int:
-        """Pulisce i nomi dei file video rimuovendo pattern tipo .jpg_NNNN-audio.
+        """Pulisce i nomi dei file video rimuovendo pattern tipo .ext_NNNN-audio.
 
         Es: 123.jpg_00001-audio.webm -> 123.webm
+            awam (8).webp_00002-audio.webm -> awam (8).webm
         Rinomina i file sul posto. Restituisce il numero di file rinominati.
         """
         import re
         count = 0
-        pattern = re.compile(r'\.jpg_\d+-audio')
+        # Rimuove .jpg/.png/.webp/.jpeg + _NNNN-audio
+        pattern = re.compile(r'\.(jpg|jpeg|png|webp|avif|bmp|gif)_\d+-audio', re.IGNORECASE)
         for f in video_dir.iterdir():
             if not f.is_file():
                 continue

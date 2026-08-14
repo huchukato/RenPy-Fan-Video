@@ -130,10 +130,10 @@ class FVProject:
             Path del file copiato in sources/.
         """
         self.create()
-        safe = self._safe_filename(image_name)
-        # Mantiene l'estensione originale
-        ext = source_path.suffix.lower()
-        dest = self.sources_dir / f"{safe}{ext}"
+        # Usa il nome file originale su disco, non il nome Ren'Py sanitizzato.
+        # Questo preserva nomi come "awam (8).webp" invece di "awam_8.webp",
+        # mantenendo il collegamento tra immagine esportata e video generato.
+        dest = self.sources_dir / source_path.name
 
         # Se esiste gia', non sovrascrive (stessa immagine)
         if not dest.exists():
@@ -142,10 +142,12 @@ class FVProject:
             # Stesso file, skip
             pass
         else:
-            # File diverso con stesso nome: aggiunge suffisso
+            # File diverso con stesso nome: aggiunge suffisso numerico
+            stem = source_path.stem
+            ext = source_path.suffix.lower()
             idx = 2
             while dest.exists():
-                dest = self.sources_dir / f"{safe}_{idx}{ext}"
+                dest = self.sources_dir / f"{stem}_{idx}{ext}"
                 idx += 1
             shutil.copy2(source_path, dest)
 
