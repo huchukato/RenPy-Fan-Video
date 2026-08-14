@@ -1997,9 +1997,19 @@ class FanVideoTool(QMainWindow):
         for i, a in enumerate(self.assignments):
             assignment_map[self._safe_name(a.image_name)] = i
 
+        # Prepara la progress bar (usa quella del tab Analyze)
+        self.progress.setRange(0, len(videos))
+        self.progress.setValue(0)
+        self.btn_associate.setEnabled(False)
+        self._log(f"[Auto] Processing {len(videos)} videos...")
+
         matched = 0
         last_frames = 0
-        for vname, vpath in videos.items():
+        for i, (vname, vpath) in enumerate(videos.items()):
+            # Aggiorna progress bar e mantieni GUI reattiva
+            self.progress.setValue(i)
+            QApplication.processEvents()
+
             if vname in assignment_map:
                 idx = assignment_map[vname]
                 entry = self.assignments[idx]
@@ -2035,6 +2045,8 @@ class FanVideoTool(QMainWindow):
                 matched += 1
                 self._log(f"[Auto] {entry.image_name} <- {vpath.name}")
 
+        self.progress.setValue(len(videos))
+        self.btn_associate.setEnabled(True)
         self._populate_patch()
         self._log(f"[Auto] Done: {matched}/{len(videos)} videos matched, "
                   f"{last_frames} last frames extracted")
