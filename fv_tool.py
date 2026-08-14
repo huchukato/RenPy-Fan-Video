@@ -2114,7 +2114,7 @@ class FanVideoTool(QMainWindow):
 
         rpy_file = self.game_dir / "fan_videos.rpy"
         rpyc_file = self.game_dir / "fan_videos.rpyc"
-        videos_dir = self.game_dir / "videos" / "fanvideomod"
+        videos_dir = self.game_dir / "movies" / "fanvideomod"
         frames_dir = self.game_dir / "images" / "fanvideomod"
 
         # Verifica che esista almeno la patch
@@ -2148,7 +2148,7 @@ class FanVideoTool(QMainWindow):
                     video_in_game = videos_dir / video_name
                     if video_in_game.exists():
                         video_in_game.unlink()
-                        removed.append(f"videos/fanvideomod/{video_name}")
+                        removed.append(f"movies/fanvideomod/{video_name}")
                         self._log(f"Deleted: {video_in_game}")
 
         # Elimina i last frames
@@ -2193,7 +2193,7 @@ class FanVideoTool(QMainWindow):
 
         Crea uno zip contenente:
         - fan_videos.rpy (il patch)
-        - videos/fanvideomod/ (i file webm)
+        - movies/fanvideomod/ (i file webm)
         - images/fanvideomod/ (gli ultimi frame)
         - README.txt (istruzioni installazione)
         """
@@ -2237,7 +2237,7 @@ class FanVideoTool(QMainWindow):
                 QMessageBox.warning(self, self.tr['error_title'], self.tr['export_empty'])
                 return
 
-            videos_dir = self.game_dir / "videos" / "fanvideomod"
+            videos_dir = self.game_dir / "movies" / "fanvideomod"
             frames_dir = self.game_dir / "images" / "fanvideomod"
 
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -2250,8 +2250,8 @@ class FanVideoTool(QMainWindow):
                     if a.video_path and a.video_path.exists():
                         video_in_game = videos_dir / a.video_path.name
                         if video_in_game.exists():
-                            zf.write(video_in_game, f"game/videos/fanvideomod/{video_in_game.name}")
-                            self._log(f"Added: game/videos/fanvideomod/{video_in_game.name}")
+                            zf.write(video_in_game, f"game/movies/fanvideomod/{video_in_game.name}")
+                            self._log(f"Added: game/movies/fanvideomod/{video_in_game.name}")
 
                 # Last frames
                 for a in active:
@@ -2274,7 +2274,7 @@ class FanVideoTool(QMainWindow):
                     f"2. Make sure fan_videos.rpy is in game/\n"
                     f"3. Launch the game - videos will replace static images\n\n"
                     f"UNINSTALL:\n"
-                    f"Delete game/fan_videos.rpy and the video files in game/videos/fanvideomod/\n"
+                    f"Delete game/fan_videos.rpy and the video files in game/movies/fanvideomod/\n"
                 )
                 zf.writestr("README.txt", readme)
 
