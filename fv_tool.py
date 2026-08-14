@@ -1030,6 +1030,7 @@ class FanVideoTool(QMainWindow):
         self.tbl_images.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.tbl_images.setSelectionBehavior(QTableWidget.SelectRows)
         self.tbl_images.setSelectionMode(QTableWidget.SingleSelection)
+        self.tbl_images.setSortingEnabled(True)
         self.tbl_images.itemSelectionChanged.connect(self._on_image_selected)
         self.tbl_images.itemDoubleClicked.connect(self._export_image)
         left.addWidget(self.tbl_images)
@@ -1519,6 +1520,7 @@ class FanVideoTool(QMainWindow):
         return re.sub(r"[^\w]+", "_", name).strip("_").lower()
 
     def _populate_gallery(self):
+        self.tbl_images.setSortingEnabled(False)
         self.tbl_images.setRowCount(0)
         visible = self._filtered_images()
 
@@ -1552,6 +1554,7 @@ class FanVideoTool(QMainWindow):
             self.tbl_images.setItem(i, 3, line_item)
 
         self.tbl_images.resizeColumnsToContents()
+        self.tbl_images.setSortingEnabled(True)
 
     def _repopulate_file_filter(self):
         """Ripopola il combo dei file .rpy mantenendo la selezione."""
