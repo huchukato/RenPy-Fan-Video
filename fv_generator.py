@@ -322,7 +322,13 @@ class FVGenerator:
                 last_frame_renpy = entry.last_frame_name
 
             # --- Definizioni frame statici ---
-            start_img = entry.start_image or entry.image_name
+            # Il first frame deve avere un nome DIVERSO dall'immagine principale,
+            # altrimenti il Movie sovrascrive la definizione statica e
+            # start_image punta al Movie stesso ("refers to itself").
+            start_img = entry.start_image
+            if not start_img or start_img == entry.image_name:
+                start_img = self._safe_renpy_name(entry.image_name) + "_first_frame"
+
             use_python = not self._is_valid_image_name(entry.image_name)
 
             if entry.start_image_path and entry.start_image_path.exists():
