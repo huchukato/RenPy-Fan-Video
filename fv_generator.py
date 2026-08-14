@@ -283,12 +283,9 @@ class FVGenerator:
             # --- Copia video ---
             video_filename = self._unique_video_name(entry.video_path)
             video_dest = self.videos_dir / video_filename
-            if not video_dest.exists():
-                self.log(f"Copia video: {entry.video_path.name} -> videos/fanvideomod/{video_filename}")
-                shutil.copy2(entry.video_path, video_dest)
-                copied_videos.append(video_dest)
-            else:
-                self.log(f"Video gia' presente: videos/fanvideomod/{video_filename}")
+            self.log(f"Copia video: {entry.video_path.name} -> videos/fanvideomod/{video_filename}")
+            shutil.copy2(entry.video_path, video_dest)
+            copied_videos.append(video_dest)
 
             # --- Copia last frame (opzionale) ---
             last_frame_renpy = None
