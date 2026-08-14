@@ -224,6 +224,18 @@ class FVGenerator:
         import re
         return re.sub(r"[^\w]+", "_", name).strip("_")
 
+    @staticmethod
+    def _is_valid_image_name(name: str) -> bool:
+        """Verifica se un nome e' valido per `image <name> = ...` di Ren'Py.
+
+        Ren'Py image names con `=` possono contenere solo lettere, cifre,
+        underscore e spazi (come separatori di tag). Parentesi e altri
+        caratteri speciali non sono permessi.
+        """
+        import re
+        # Validi: lettere, cifre, underscore, spazi
+        return bool(re.match(r'^[\w ]+$', name))
+
     # ------------------------------------------------------------------ #
     # Generazione
     # ------------------------------------------------------------------ #
@@ -304,22 +316,35 @@ class FVGenerator:
 
             # --- Definizioni frame statici ---
             start_img = entry.start_image or entry.image_name
+            use_python = not self._is_valid_image_name(entry.image_name)
+
             if entry.start_image_path and entry.start_image_path.exists():
                 first_rel = self._image_rel_path(entry.start_image_path)
-                lines.append(f'    image {start_img} = "{first_rel}"')
+                if use_python:
+                    lines.append(f'    $ renpy.image("{start_img}", "{first_rel}")')
+                else:
+                    lines.append(f'    image {start_img} = "{first_rel}"')
                 self.log(f"  first frame: {start_img} = {first_rel}")
 
             if last_frame_renpy and entry.last_frame_path:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
                 if self.screen_size:
-                    # Scala il last frame alla risoluzione del gioco
                     sw, sh = self.screen_size
-                    lines.append(
-                        f'    image {last_frame_renpy} = Transform("{frame_rel}", '
-                        f'size=({sw}, {sh}))'
-                    )
+                    if use_python:
+                        lines.append(
+                            f'    $ renpy.image("{last_frame_renpy}", '
+                            f'Transform("{frame_rel}", size=({sw}, {sh})))'
+                        )
+                    else:
+                        lines.append(
+                            f'    image {last_frame_renpy} = Transform("{frame_rel}", '
+                            f'size=({sw}, {sh}))'
+                        )
                 else:
-                    lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
+                    if use_python:
+                        lines.append(f'    $ renpy.image("{last_frame_renpy}", "{frame_rel}")')
+                    else:
+                        lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
@@ -337,7 +362,10 @@ class FVGenerator:
                 movie_args.append('loop=False')
 
             movie_call = f"Movie({', '.join(movie_args)})"
-            line = f'    image {entry.image_name} = {movie_call}'
+            if use_python:
+                line = f'    $ renpy.image("{entry.image_name}", {movie_call})'
+            else:
+                line = f'    image {entry.image_name} = {movie_call}'
             lines.append(line)
             self.log(f"  {entry.image_name}  ->  {movie_call}")
 
