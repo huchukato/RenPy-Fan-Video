@@ -1173,6 +1173,13 @@ class FanVideoTool(QMainWindow):
         btn_box.addWidget(self.btn_generate)
         btn_box.addWidget(self.btn_export_mod)
         left.addLayout(btn_box)
+
+        # Progress bar per operazioni nel tab Patch (es. auto-associazione video)
+        self.patch_progress = QProgressBar()
+        self.patch_progress.setRange(0, 100)
+        self.patch_progress.setValue(0)
+        left.addWidget(self.patch_progress)
+
         hbox.addLayout(left, 2)
 
         # Preview destra: stacked widget con immagine e video
@@ -2061,9 +2068,9 @@ class FanVideoTool(QMainWindow):
         for i, a in enumerate(self.assignments):
             assignment_map[self._safe_name(a.image_name)] = i
 
-        # Prepara la progress bar (usa quella del tab Analyze)
-        self.progress.setRange(0, len(videos))
-        self.progress.setValue(0)
+        # Prepara la progress bar del tab Patch
+        self.patch_progress.setRange(0, len(videos))
+        self.patch_progress.setValue(0)
         self.btn_associate.setEnabled(False)
         self._log(f"[Auto] Processing {len(videos)} videos...")
 
@@ -2071,7 +2078,7 @@ class FanVideoTool(QMainWindow):
         last_frames = 0
         for i, (vname, vpath) in enumerate(videos.items()):
             # Aggiorna progress bar e mantieni GUI reattiva
-            self.progress.setValue(i)
+            self.patch_progress.setValue(i)
             QApplication.processEvents()
 
             if vname in assignment_map:
@@ -2109,7 +2116,7 @@ class FanVideoTool(QMainWindow):
                 matched += 1
                 self._log(f"[Auto] {entry.image_name} <- {vpath.name}")
 
-        self.progress.setValue(len(videos))
+        self.patch_progress.setValue(len(videos))
         self.btn_associate.setEnabled(True)
         self._populate_patch()
         self._log(f"[Auto] Done: {matched}/{len(videos)} videos matched, "
