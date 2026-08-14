@@ -63,7 +63,14 @@ class FVGenerator:
                 self.game_dir = self.game_path
 
         self.patch_dir = self.game_dir  # file .rpy va direttamente in game/
-        self.videos_dir = self.game_dir / "movies" / "fanvideomod"
+        # Rileva il nome corretto della cartella video (case-sensitive)
+        # Alcuni giochi usano "Movies", altri "movies"
+        self.movies_folder = "movies"
+        for candidate in ("movies", "Movies", "MOVIES"):
+            if (self.game_dir / candidate).is_dir():
+                self.movies_folder = candidate
+                break
+        self.videos_dir = self.game_dir / self.movies_folder / "fanvideomod"
         self.frames_dir = self.game_dir / "images" / "fanvideomod"
 
         # Rileva la risoluzione del gioco per scalare i video
@@ -348,7 +355,7 @@ class FVGenerator:
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
-            movie_args = [f'play="movies/fanvideomod/{video_filename}"']
+            movie_args = [f'play="{self.movies_folder}/fanvideomod/{video_filename}"']
             movie_args.append(f'start_image="{start_img}"')
 
             # Scala il video alla risoluzione del gioco se rilevata
