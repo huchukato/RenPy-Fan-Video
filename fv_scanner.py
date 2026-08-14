@@ -232,9 +232,10 @@ class FVScanner:
             if name.startswith(('#', '"', "'", '$')):
                 continue
             # Salta nomi con caratteri non validi per un'immagine statica
-            # (parentesi quadre/graffe = interpolazione; parentesi tonde =
-            # displayable dinamico; $ = variabile)
-            if any(c in name for c in '()[]{}$'):
+            # (parentesi quadre/graffe = interpolazione; $ = variabile)
+            # Le parentesi tonde sono permesse: Ren'Py accetta nomi come
+            # "awam (1)" come nomi image validi.
+            if any(c in name for c in '[]{}$'):
                 continue
 
             usages.setdefault(name, []).append((rpy_file, i))
