@@ -15,8 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QObject
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QObject, QUrl
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtMultimedia import QMediaPlayer
+from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -1157,18 +1160,34 @@ class FanVideoTool(QMainWindow):
         left.addLayout(btn_box)
         hbox.addLayout(left, 2)
 
-        # Preview destra
+        # Preview destra: stacked widget con immagine e video
         right = QVBoxLayout()
         self.lbl_patch_preview_title = QLabel("")
+        # Stacked widget: pagina 0 = immagine, pagina 1 = video
+        self.patch_preview_stack = QStackedWidget()
+        self.patch_preview_stack.setMinimumSize(320, 240)
+
+        # Pagina 0: preview immagine (QLabel)
         self.lbl_patch_preview = QLabel()
         self.lbl_patch_preview.setAlignment(Qt.AlignCenter)
-        self.lbl_patch_preview.setMinimumSize(320, 240)
         self.lbl_patch_preview.setStyleSheet(
             "background-color: #16263a; border: 1px solid #2a4055; border-radius: 4px;"
         )
         self.lbl_patch_preview.setScaledContents(False)
+
+        # Pagina 1: preview video (QVideoWidget + QMediaPlayer)
+        self.video_player = QMediaPlayer()
+        self.video_widget = QVideoWidget()
+        self.video_widget.setStyleSheet(
+            "background-color: #000000; border: 1px solid #2a4055; border-radius: 4px;"
+        )
+        self.video_player.setVideoOutput(self.video_widget)
+
+        self.patch_preview_stack.addWidget(self.lbl_patch_preview)   # index 0
+        self.patch_preview_stack.addWidget(self.video_widget)        # index 1
+
         right.addWidget(self.lbl_patch_preview_title)
-        right.addWidget(self.lbl_patch_preview, 1)  # si espande con la finestra
+        right.addWidget(self.patch_preview_stack, 1)  # si espande con la finestra
 
         self.lbl_patch_preview_info = QLabel("")
         self.lbl_patch_preview_info.setWordWrap(True)
@@ -1805,9 +1824,10 @@ class FanVideoTool(QMainWindow):
         self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
 
     def _on_patch_row_changed(self):
-        """Mostra la preview dell'immagine della riga selezionata nel tab Patch."""
+        """Mostra la preview del video o dell'immagine della riga selezionata."""
         row = self.tbl_patch.currentRow()
         if row < 0 or row >= len(self.assignments):
+            self._stop_video_preview()
             self.lbl_patch_preview.clear()
             self.lbl_patch_preview_title.setText("")
             self.lbl_patch_preview_info.setText(self.tr['patch_no_selection'])
@@ -1824,28 +1844,36 @@ class FanVideoTool(QMainWindow):
             self.tr['preview'] + ": " + entry.image_name
         )
 
-        # Cerca il path dell'immagine: prima start_image_path, poi nella galleria
-        img_path = entry.start_image_path
-        if (img_path is None or not Path(img_path).exists()) and self.images:
-            for i in self.images:
-                if i.name == entry.image_name:
-                    img_path = i.file_path
-                    break
+        # Se c'e' un video associato, mostra il video
+        if entry.video_path and entry.video_path.exists():
+            self._play_video_preview(entry.video_path)
+        else:
+            # Nessun video: mostra l'immagine statica
+            self._stop_video_preview()
+            self.patch_preview_stack.setCurrentIndex(0)
 
-        if img_path and Path(img_path).exists():
-            pix = QPixmap(str(img_path))
-            if not pix.isNull():
-                scaled = pix.scaled(
-                    self.lbl_patch_preview.width(),
-                    self.lbl_patch_preview.height(),
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
-                )
-                self.lbl_patch_preview.setPixmap(scaled)
+            # Cerca il path dell'immagine: prima start_image_path, poi nella galleria
+            img_path = entry.start_image_path
+            if (img_path is None or not Path(img_path).exists()) and self.images:
+                for i in self.images:
+                    if i.name == entry.image_name:
+                        img_path = i.file_path
+                        break
+
+            if img_path and Path(img_path).exists():
+                pix = QPixmap(str(img_path))
+                if not pix.isNull():
+                    scaled = pix.scaled(
+                        self.lbl_patch_preview.width(),
+                        self.lbl_patch_preview.height(),
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
+                    self.lbl_patch_preview.setPixmap(scaled)
+                else:
+                    self.lbl_patch_preview.clear()
             else:
                 self.lbl_patch_preview.clear()
-        else:
-            self.lbl_patch_preview.clear()
 
         # Info aggiuntive: video associato, loop, stato
         video_str = entry.video_path.name if entry.video_path else self.tr['pending_video']
@@ -1856,6 +1884,17 @@ class FanVideoTool(QMainWindow):
             f"<b>{self.tr['col_loop']}:</b> {loop_str}<br>"
             f"<b>{self.tr['col_status']}:</b> {status_str}"
         )
+
+    def _play_video_preview(self, video_path: Path):
+        """Avvia la riproduzione del video nella preview del tab Patch."""
+        self.patch_preview_stack.setCurrentIndex(1)
+        self.video_player.setSource(QUrl.fromLocalFile(str(video_path)))
+        self.video_player.play()
+
+    def _stop_video_preview(self):
+        """Ferma la riproduzione del video."""
+        self.video_player.stop()
+        self.video_player.setSource(QUrl())
 
     def _populate_patch(self):
         self.tbl_patch.setSortingEnabled(False)
@@ -2293,6 +2332,7 @@ class FanVideoTool(QMainWindow):
 
     def closeEvent(self, event):
         """Salva la sessione e termina pulitamente i thread all'uscita."""
+        self._stop_video_preview()
         self._save_session()
         if hasattr(self, 'thread') and self.thread is not None:
             try:
