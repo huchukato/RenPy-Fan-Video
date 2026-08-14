@@ -41,6 +41,28 @@ from PySide6.QtWidgets import (
 
 from fv_extractor import FVExtractor
 from fv_generator import FVGenerator, PatchEntry
+
+
+class NaturalSortItem(QTableWidgetItem):
+    """QTableWidgetItem con sorting naturale (numeric-aware).
+
+    Ordina "1", "2", "10" invece di "1", "10", "2".
+    """
+
+    @staticmethod
+    def _natural_key(s: str) -> list:
+        return [int(t) if t.isdigit() else t.lower()
+                for t in re.split(r'(\d+)', s)]
+
+    def __lt__(self, other):
+        if not isinstance(other, QTableWidgetItem):
+            return super().__lt__(other)
+        my_text = self.text()
+        other_text = other.text()
+        try:
+            return self._natural_key(my_text) < self._natural_key(other_text)
+        except (TypeError, ValueError):
+            return my_text.lower() < other_text.lower()
 from fv_project import FVProject
 from fv_scanner import FVScanner, StaticImage
 
@@ -1527,7 +1549,7 @@ class FanVideoTool(QMainWindow):
         self.tbl_images.setRowCount(len(visible))
         for i, img in enumerate(visible):
             # Colonna 0: thumbnail (caricato lazy solo per immagini risolte)
-            thumb_item = QTableWidgetItem()
+            thumb_item = NaturalSortItem()
             thumb_item.setData(Qt.UserRole, img)
             if img.file_path and img.file_path.exists():
                 # Non caricare il pixmap qui: troppo lento con migliaia di righe.
@@ -1536,19 +1558,19 @@ class FanVideoTool(QMainWindow):
             thumb_item.setFlags(thumb_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 0, thumb_item)
 
-            name_item = QTableWidgetItem(img.name)
+            name_item = NaturalSortItem(img.name)
             name_item.setData(Qt.UserRole, img)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 1, name_item)
 
             src = img.used_in[0] if img.used_in else (Path("-"), 0)
-            src_item = QTableWidgetItem(src[0].name if hasattr(src[0], 'name') else str(src[0]))
+            src_item = NaturalSortItem(src[0].name if hasattr(src[0], 'name') else str(src[0]))
             src_item.setData(Qt.UserRole, img)
             src_item.setToolTip(str(src[0]))
             src_item.setFlags(src_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 2, src_item)
 
-            line_item = QTableWidgetItem(str(src[1]))
+            line_item = NaturalSortItem(str(src[1]))
             line_item.setData(Qt.UserRole, img)
             line_item.setFlags(line_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 3, line_item)
@@ -1839,21 +1861,21 @@ class FanVideoTool(QMainWindow):
         self.tbl_patch.setSortingEnabled(False)
         self.tbl_patch.setRowCount(len(self.assignments))
         for i, a in enumerate(self.assignments):
-            self.tbl_patch.setItem(i, 0, QTableWidgetItem(a.image_name))
+            self.tbl_patch.setItem(i, 0, NaturalSortItem(a.image_name))
             self.tbl_patch.setItem(
                 i, 1,
-                QTableWidgetItem(a.video_path.name if a.video_path else self.tr['pending_video'])
+                NaturalSortItem(a.video_path.name if a.video_path else self.tr['pending_video'])
             )
             self.tbl_patch.setItem(
                 i, 2,
-                QTableWidgetItem(a.last_frame_path.name if a.last_frame_path else "-")
+                NaturalSortItem(a.last_frame_path.name if a.last_frame_path else "-")
             )
-            self.tbl_patch.setItem(i, 3, QTableWidgetItem(self.tr['yes'] if a.loop else self.tr['no']))
+            self.tbl_patch.setItem(i, 3, NaturalSortItem(self.tr['yes'] if a.loop else self.tr['no']))
             if a.has_video:
-                status_item = QTableWidgetItem(self.tr['status_ready'])
+                status_item = NaturalSortItem(self.tr['status_ready'])
                 status_item.setForeground(Qt.green)
             else:
-                status_item = QTableWidgetItem(self.tr['status_pending'])
+                status_item = NaturalSortItem(self.tr['status_pending'])
                 status_item.setForeground(Qt.yellow)
             self.tbl_patch.setItem(i, 4, status_item)
         self.tbl_patch.setSortingEnabled(True)
