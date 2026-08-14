@@ -66,6 +66,20 @@ class NaturalSortItem(QTableWidgetItem):
             return self._natural_key(my_text) < self._natural_key(other_text)
         except (TypeError, ValueError):
             return my_text.lower() < other_text.lower()
+
+
+class PatchTable(QTableWidget):
+    """QTableWidget del tab Patch con supporto tasti Canc/Backspace."""
+
+    delete_pressed = Signal()
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
+            self.delete_pressed.emit()
+        else:
+            super().keyPressEvent(event)
+
+
 from fv_project import FVProject
 from fv_scanner import FVScanner, StaticImage
 
@@ -289,7 +303,7 @@ TRANSLATIONS = {
         'col_last_frame': "Last frame",
         'col_loop': "Loop",
         'col_status': "Stato",
-        'btn_remove': "Rimuovi selezionato",
+        'btn_remove': "Rimuovi selezionati",
         'btn_associate': "Auto-associa video...",
         'btn_associate_tip': "Seleziona una cartella di video .webm; ogni video viene associato all'immagine con lo stesso nome",
         'auto_assoc_title': "Seleziona cartella video",
@@ -424,7 +438,7 @@ TRANSLATIONS = {
         'col_last_frame': "Ultimo frame",
         'col_loop': "Loop",
         'col_status': "Estado",
-        'btn_remove': "Eliminar seleccionado",
+        'btn_remove': "Eliminar seleccionados",
         'btn_associate': "Auto-asociar videos...",
         'btn_associate_tip': "Selecciona una carpeta de videos .webm; cada video se asocia a la imagen con el mismo nombre",
         'auto_assoc_title': "Seleccionar carpeta de videos",
@@ -1107,7 +1121,7 @@ class FanVideoTool(QMainWindow):
         hbox = QHBoxLayout()
 
         left = QVBoxLayout()
-        self.tbl_patch = QTableWidget()
+        self.tbl_patch = PatchTable()
         self.tbl_patch.setColumnCount(5)
         self.tbl_patch.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.tbl_patch.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
@@ -1115,10 +1129,11 @@ class FanVideoTool(QMainWindow):
         self.tbl_patch.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.tbl_patch.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.tbl_patch.setSelectionBehavior(QTableWidget.SelectRows)
-        self.tbl_patch.setSelectionMode(QTableWidget.SingleSelection)
+        self.tbl_patch.setSelectionMode(QTableWidget.ExtendedSelection)
         self.tbl_patch.setSortingEnabled(True)
         self.tbl_patch.itemDoubleClicked.connect(self._on_patch_double_click)
         self.tbl_patch.itemSelectionChanged.connect(self._on_patch_row_changed)
+        self.tbl_patch.delete_pressed.connect(self._remove_assignment)
         left.addWidget(self.tbl_patch)
 
         btn_box = QHBoxLayout()
@@ -2105,17 +2120,20 @@ class FanVideoTool(QMainWindow):
         )
 
     def _remove_assignment(self):
-        row = self.tbl_patch.currentRow()
-        if row < 0:
+        # Raccoglie i nomi da tutte le righe selezionate (supporta multi-selezione)
+        rows = {item.row() for item in self.tbl_patch.selectedItems()}
+        if not rows:
             return
-        # Con sorting attivo, row e' visivo: trova l'entry dal nome
-        name_item = self.tbl_patch.item(row, 0)
-        if not name_item:
+        names_to_remove = set()
+        for row in rows:
+            name_item = self.tbl_patch.item(row, 0)
+            if name_item:
+                names_to_remove.add(name_item.text())
+        if not names_to_remove:
             return
-        for i, a in enumerate(self.assignments):
-            if a.image_name == name_item.text():
-                del self.assignments[i]
-                break
+        self.assignments = [
+            a for a in self.assignments if a.image_name not in names_to_remove
+        ]
         self._populate_patch()  # chiama anche _save_session
 
     def _generate_patch(self):
