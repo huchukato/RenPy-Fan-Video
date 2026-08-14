@@ -1626,6 +1626,24 @@ class FanVideoTool(QMainWindow):
 
         self.tbl_images.resizeColumnsToContents()
         self.tbl_images.setSortingEnabled(True)
+        self._update_gallery_patch_highlights()
+
+    def _update_gallery_patch_highlights(self):
+        """Evidenzia in giallo le righe della galleria gia' presenti nel patch."""
+        patch_names = {a.image_name for a in self.assignments}
+        default_color = self.palette().text().color()
+        for row in range(self.tbl_images.rowCount()):
+            name_item = self.tbl_images.item(row, 1)
+            if name_item is None:
+                continue
+            img = name_item.data(Qt.UserRole)
+            if img is None:
+                continue
+            color = Qt.yellow if img.name in patch_names else default_color
+            for col in range(self.tbl_images.columnCount()):
+                item = self.tbl_images.item(row, col)
+                if item is not None:
+                    item.setForeground(color)
 
     def _repopulate_file_filter(self):
         """Ripopola il combo dei file .rpy mantenendo la selezione."""
@@ -1772,6 +1790,7 @@ class FanVideoTool(QMainWindow):
             )
         )
         self._populate_patch()
+        self._update_gallery_patch_highlights()
         self.tabs.setCurrentIndex(2)
 
     def _export_image(self):
@@ -2119,6 +2138,7 @@ class FanVideoTool(QMainWindow):
         self.patch_progress.setValue(len(videos))
         self.btn_associate.setEnabled(True)
         self._populate_patch()
+        self._update_gallery_patch_highlights()
         self._log(f"[Auto] Done: {matched}/{len(videos)} videos matched, "
                   f"{last_frames} last frames extracted")
         QMessageBox.information(
@@ -2142,6 +2162,7 @@ class FanVideoTool(QMainWindow):
             a for a in self.assignments if a.image_name not in names_to_remove
         ]
         self._populate_patch()  # chiama anche _save_session
+        self._update_gallery_patch_highlights()
 
     def _generate_patch(self):
         if not self.assignments:
