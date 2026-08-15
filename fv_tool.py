@@ -168,6 +168,9 @@ TRANSLATIONS = {
         'col_last_frame': "Last frame",
         'col_loop': "Loop",
         'col_status': "Status",
+        'btn_add_video': "Add Video",
+        'btn_add_video_tip': "Manually associate (or replace) the video of the selected row. "
+                             "Use this as a fallback when auto-associate can't find a match.",
         'btn_remove': "Remove selected",
         'btn_associate': "Auto-associate videos...",
         'btn_associate_tip': "Select a folder of .webm videos; each is matched to an image by name",
@@ -303,6 +306,9 @@ TRANSLATIONS = {
         'col_last_frame': "Last frame",
         'col_loop': "Loop",
         'col_status': "Stato",
+        'btn_add_video': "Aggiungi Video",
+        'btn_add_video_tip': "Associa (o sostituisce) manualmente il video della riga selezionata. "
+                             "Usalo come fallback quando l'auto-associazione non trova un match.",
         'btn_remove': "Rimuovi selezionati",
         'btn_associate': "Auto-associa video...",
         'btn_associate_tip': "Seleziona una cartella di video .webm; ogni video viene associato all'immagine con lo stesso nome",
@@ -438,6 +444,9 @@ TRANSLATIONS = {
         'col_last_frame': "Ultimo frame",
         'col_loop': "Loop",
         'col_status': "Estado",
+        'btn_add_video': "Anadir Video",
+        'btn_add_video_tip': "Asocia (o reemplaza) manualmente el video de la fila seleccionada. "
+                             "Usalo como respaldo cuando la auto-asociacion no encuentra coincidencia.",
         'btn_remove': "Eliminar seleccionados",
         'btn_associate': "Auto-asociar videos...",
         'btn_associate_tip': "Selecciona una carpeta de videos .webm; cada video se asocia a la imagen con el mismo nombre",
@@ -1138,6 +1147,14 @@ class FanVideoTool(QMainWindow):
         left.addWidget(self.tbl_patch)
 
         btn_box = QHBoxLayout()
+        self.btn_add_video = QPushButton("")
+        self.btn_add_video.setStyleSheet(
+            "QPushButton { padding: 6px 12px; "
+            "background-color: #1e3a4a; color: #5fb7c7; border: 1px solid #2a5568; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #26485c; }"
+            "QPushButton:pressed { background-color: #163040; }"
+        )
+        self.btn_add_video.clicked.connect(self._add_video_to_selected)
         self.btn_remove = QPushButton("")
         self.btn_remove.clicked.connect(self._remove_assignment)
         self.btn_associate = QPushButton("")
@@ -1167,6 +1184,7 @@ class FanVideoTool(QMainWindow):
         )
         self.btn_export_mod.clicked.connect(self._export_mod)
 
+        btn_box.addWidget(self.btn_add_video)
         btn_box.addWidget(self.btn_remove)
         btn_box.addWidget(self.btn_associate)
         btn_box.addWidget(self.btn_remove_patch)
@@ -1262,6 +1280,8 @@ class FanVideoTool(QMainWindow):
             [tr['col_image'], tr['col_video'], tr['col_last_frame'],
              tr['col_loop'], tr['col_status']]
         )
+        self.btn_add_video.setText(tr['btn_add_video'])
+        self.btn_add_video.setToolTip(tr['btn_add_video_tip'])
         self.btn_remove.setText(tr['btn_remove'])
         self.btn_associate.setText(tr['btn_associate'])
         self.btn_associate.setToolTip(tr['btn_associate_tip'])
@@ -1928,6 +1948,22 @@ class FanVideoTool(QMainWindow):
         if dlg.exec() != QDialog.Accepted:
             return
         self._apply_video_association(entry, cast(Path, dlg.video_path), dlg.last_frame_path, dlg.loop)
+
+    def _add_video_to_selected(self):
+        """Pulsante 'Aggiungi Video': fallback manuale quando l'auto-associate
+        non trova un match. Associa (o sostituisce) il video della riga
+        selezionata nel tab Patch."""
+        row = self.tbl_patch.currentRow()
+        if row < 0:
+            QMessageBox.information(self, self.tr['title'], self.tr['select_patch_row'])
+            return
+        name_item = self.tbl_patch.item(row, 0)
+        if not name_item:
+            return
+        entry = next((a for a in self.assignments if a.image_name == name_item.text()), None)
+        if not entry:
+            return
+        self._manual_associate_video(entry)
 
     def _on_patch_row_changed(self):
         """Mostra la preview del video o dell'immagine della riga selezionata."""
