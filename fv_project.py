@@ -4,7 +4,7 @@ RenPy-Fan-Video - Project Module
 Gestisce la cartella di progetto dedicata per ogni gioco.
 
 Struttura:
-  ~/FanVideoProjects/<game_name>/
+  FanVideoProjects/<game_name>/
   ├── sources/      # immagini statiche esportate dal gioco
   ├── videos/       # video webm generati esternamente (l'utente li mette qui)
   ├── last_frames/  # ultimi frame (opzionali)
@@ -17,6 +17,7 @@ il patch Ren'Py.
 """
 
 import json
+import os
 import re
 import shutil
 from datetime import datetime
@@ -24,8 +25,29 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
 
-# Directory radice dei progetti (home utente)
-PROJECTS_ROOT = Path.home() / "FanVideoProjects"
+def _default_projects_root() -> Path:
+    """Determina dove salvare i progetti (immagini/video esportati).
+
+    I progetti possono diventare grandi (video generati dall'AI), quindi
+    di default si preferisce un volume esterno con piu' spazio libero se
+    disponibile, invece di riempire il disco di sistema. Ordine:
+      1. Variabile d'ambiente FANVIDEO_PROJECTS_ROOT, se impostata.
+      2. /Volumes/NVME/FanVideoProjects, se il volume "NVME" e' montato.
+      3. Fallback: ~/FanVideoProjects (home utente).
+    """
+    env_root = os.environ.get("FANVIDEO_PROJECTS_ROOT")
+    if env_root:
+        return Path(env_root).expanduser()
+
+    preferred = Path("/Volumes/NVME/FanVideoProjects")
+    if preferred.parent.is_dir():
+        return preferred
+
+    return Path.home() / "FanVideoProjects"
+
+
+# Directory radice dei progetti
+PROJECTS_ROOT = _default_projects_root()
 
 
 @dataclass

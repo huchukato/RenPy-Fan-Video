@@ -100,7 +100,7 @@ class PatchTable(QTableWidget):
             super().keyPressEvent(event)
 
 
-from fv_project import FVProject
+from fv_project import FVProject, PROJECTS_ROOT
 from fv_scanner import FVScanner, StaticImage
 
 
@@ -152,7 +152,7 @@ TRANSLATIONS = {
         'col_movie': "Movie",
         'btn_export': "Export image",
         'btn_export_tip': "Copy the selected image to the project folder "
-                          "(~/FanVideoProjects/<game>/sources/) so you can use it "
+                          "(FanVideoProjects/<game>/sources/) so you can use it "
                           "as input to generate the video with external AI tools.",
         'preview': "Preview",
         'preview_unavailable': "Preview unavailable",
@@ -291,7 +291,7 @@ TRANSLATIONS = {
         'col_movie': "Movie",
         'btn_export': "Esporta immagine",
         'btn_export_tip': "Copia l'immagine selezionata nella cartella di progetto "
-                          "(~/FanVideoProjects/<gioco>/sources/) cosi' puoi usarla "
+                          "(FanVideoProjects/<gioco>/sources/) cosi' puoi usarla "
                           "come input per generare il video con tool AI esterni.",
         'preview': "Anteprima",
         'preview_unavailable': "Anteprima non disponibile",
@@ -426,7 +426,7 @@ TRANSLATIONS = {
         'col_movie': "Movie",
         'btn_export': "Exportar imagen",
         'btn_export_tip': "Copia la imagen seleccionada a la carpeta del proyecto "
-                          "(~/FanVideoProjects/<juego>/sources/) para usarla "
+                          "(FanVideoProjects/<juego>/sources/) para usarla "
                           "como entrada para generar el video con herramientas "
                           "de IA externas.",
         'preview': "Vista previa",
@@ -670,8 +670,7 @@ class AssociateDialog(QDialog):
             return
 
         # Cartella per i last frame estratti (nella cartella del progetto)
-        project_root = Path.home() / "FanVideoProjects"
-        lf_dir = project_root / "_last_frames"
+        lf_dir = PROJECTS_ROOT / "_last_frames"
         lf_dir.mkdir(parents=True, exist_ok=True)
 
         stem = self.video_path.stem
@@ -766,12 +765,12 @@ class FanVideoTool(QMainWindow):
     @staticmethod
     def _global_session_path() -> Path:
         """Percorso del file di sessione globale (ultimo gioco + lingua)."""
-        return Path.home() / "FanVideoProjects" / "session.json"
+        return PROJECTS_ROOT / "session.json"
 
     def _session_path_for_game(self, game_path: Path | None = None) -> Path:
         """Percorso del file di sessione per un gioco specifico.
 
-        Salva le assignments in ~/FanVideoProjects/<game_name>/session.json
+        Salva le assignments in FanVideoProjects/<game_name>/session.json
         così ogni gioco mantiene il proprio stato indipendentemente.
         """
         gp = game_path or self.game_path
@@ -783,7 +782,7 @@ class FanVideoTool(QMainWindow):
             name = name[:-4]
         import re as _re
         name = _re.sub(r"[^\w\-]+", "_", name).strip("_") or "unnamed_game"
-        return Path.home() / "FanVideoProjects" / name / "session.json"
+        return PROJECTS_ROOT / name / "session.json"
 
     def _save_global_session(self):
         """Salva solo l'ultimo gioco aperto e la lingua (file globale)."""
@@ -807,7 +806,7 @@ class FanVideoTool(QMainWindow):
         """Salva lo stato corrente su disco (auto-save).
 
         Salva le assignments nel file di sessione del gioco corrente
-        (~/FanVideoProjects/<game_name>/session.json) e aggiorna il
+        (FanVideoProjects/<game_name>/session.json) e aggiorna il
         file globale con l'ultimo gioco e la lingua.
         """
         if not self.game_path:
@@ -2035,10 +2034,10 @@ class FanVideoTool(QMainWindow):
     def _extract_last_frame_for_video(self, video_path: Path) -> Path | None:
         """Estrae l'ultimo frame da un video usando ffmpeg.
 
-        Salva il frame in ~/FanVideoProjects/_last_frames/<stem>_last.jpg.
+        Salva il frame in FanVideoProjects/_last_frames/<stem>_last.jpg.
         Se esiste già un last frame valido, lo riutilizza.
         """
-        lf_dir = Path.home() / "FanVideoProjects" / "_last_frames"
+        lf_dir = PROJECTS_ROOT / "_last_frames"
         lf_dir.mkdir(parents=True, exist_ok=True)
 
         stem = video_path.stem
