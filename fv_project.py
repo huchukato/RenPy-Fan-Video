@@ -130,10 +130,18 @@ class FVProject:
             Path del file copiato in sources/.
         """
         self.create()
-        # Usa il nome file originale su disco, non il nome Ren'Py sanitizzato.
-        # Questo preserva nomi come "awam (8).webp" invece di "awam_8.webp",
-        # mantenendo il collegamento tra immagine esportata e video generato.
-        dest = self.sources_dir / source_path.name
+        # Usa il nome Ren'Py sanitizzato (non il nome file originale su disco).
+        # Questo garantisce che il file esportato (che l'utente carica nel
+        # tool AI per generare il video) abbia sempre lo stesso nome
+        # dell'alias Ren'Py, indipendentemente da come si chiama il file
+        # sorgente sul disco del gioco (che puo' contenere suffissi come
+        # "_preview" aggiunti dagli sviluppatori del gioco stesso, o cambiare
+        # da un aggiornamento all'altro). Cosi', se l'utente nomina il video
+        # generato come il file esportato, l'auto-associazione funzionera'
+        # sempre.
+        safe = self._safe_filename(image_name)
+        ext = source_path.suffix.lower()
+        dest = self.sources_dir / f"{safe}{ext}"
 
         # Se esiste gia', non sovrascrive (stessa immagine)
         if not dest.exists():
@@ -142,13 +150,8 @@ class FVProject:
             # Stesso file, skip
             pass
         else:
-            # File diverso con stesso nome: aggiunge suffisso numerico
-            stem = source_path.stem
-            ext = source_path.suffix.lower()
-            idx = 2
-            while dest.exists():
-                dest = self.sources_dir / f"{stem}_{idx}{ext}"
-                idx += 1
+            # File diverso con stesso nome (es. immagine del gioco cambiata
+            # in un aggiornamento): sovrascrive con il contenuto attuale.
             shutil.copy2(source_path, dest)
 
         # Registra/aggiorna l'entry
@@ -187,10 +190,12 @@ class FVProject:
     def associate_video(self, image_name: str, video_path: Path,
                         last_frame_path: Path | None = None,
                         loop: bool = True) -> Path | None:
-        """Associa un video a un'immagine esportata.
+        """Associa un video a un'immagine (esportata o meno).
 
-        Copia il video in videos/ (se non gia' presente), aggiorna
-        l'entry in project.json.
+        Copia il video in videos/ rinominandolo "<alias>_vid.ext" (stessa
+        convenzione di "<alias>_last.ext" per il last frame), aggiorna
+        l'entry in project.json. Se l'immagine non era ancora stata
+        esportata, l'entry viene creata al volo.
 
         Args:
             image_name: nome Ren'Py dell'immagine.
@@ -199,34 +204,32 @@ class FVProject:
             loop: True per loop, False per play once.
 
         Returns:
-            Path del video copiato in videos/, oppure None se l'entry
-            non esiste.
+            Path del video copiato in videos/.
         """
-        if image_name not in self.entries:
-            return None
-
         self.create()
         safe = self._safe_filename(image_name)
 
-        # Copia video
-        video_dest = self.videos_dir / f"{safe}{video_path.suffix.lower()}"
-        if not video_dest.exists():
+        # Copia video (sovrascrive sempre: l'utente potrebbe star
+        # sostituendo un'associazione precedente con un video diverso)
+        video_dest = self.videos_dir / f"{safe}_vid{video_path.suffix.lower()}"
+        if video_dest.resolve() != video_path.resolve():
             shutil.copy2(video_path, video_dest)
 
         # Copia last frame
         lf_dest_name = None
         if last_frame_path and last_frame_path.exists():
             lf_dest = self.last_frames_dir / f"{safe}_last{last_frame_path.suffix.lower()}"
-            if not lf_dest.exists():
+            if lf_dest.resolve() != last_frame_path.resolve():
                 shutil.copy2(last_frame_path, lf_dest)
             lf_dest_name = lf_dest.name
 
-        # Aggiorna entry
-        entry = self.entries[image_name]
+        # Aggiorna/crea l'entry
+        entry = self.entries.get(image_name, ProjectEntry(image_name=image_name))
         entry.video_file = video_dest.name
         entry.last_frame_file = lf_dest_name
         entry.loop = loop
         entry.video_associated_at = datetime.now().isoformat()
+        self.entries[image_name] = entry
         self.save()
 
         return video_dest

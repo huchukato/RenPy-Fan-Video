@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -1776,25 +1775,16 @@ class FanVideoTool(QMainWindow):
         if dlg.exec() != QDialog.Accepted:
             return
 
-        video_dest = self._materialize_video_for_image(img.name, cast(Path, dlg.video_path))
-
         safe = self._safe_name(img.name)
         start_name = f"{safe}_first_frame"
-        last_name = f"{safe}_last_frame" if dlg.last_frame_path else None
 
-        self.assignments.append(
-            PatchEntry(
-                image_name=img.name,
-                video_path=video_dest,
-                start_image=start_name,
-                start_image_path=img.file_path,
-                last_frame_path=dlg.last_frame_path,
-                last_frame_name=last_name,
-                loop=dlg.loop,
-            )
+        new_entry = PatchEntry(
+            image_name=img.name,
+            start_image=start_name,
+            start_image_path=img.file_path,
         )
-        self._populate_patch()
-        self._update_gallery_patch_highlights()
+        self.assignments.append(new_entry)
+        self._apply_video_association(new_entry, cast(Path, dlg.video_path), dlg.last_frame_path, dlg.loop)
         self.tabs.setCurrentIndex(2)
 
     def _export_image(self):
@@ -1881,23 +1871,55 @@ class FanVideoTool(QMainWindow):
         elif col == 1:  # col_video
             self._manual_associate_video(entry)
 
-    def _materialize_video_for_image(self, image_name: str, src: Path) -> Path:
-        """Copia il video associato in una cartella del progetto rinominandolo
-        in base al nome dell'immagine Ren'Py (es. "nomeimmagine_vid.webm").
-
-        In questo modo il nome del file video non dipende piu' dal nome
-        (spesso "sporco", con suffissi tipo _preview o _v01) con cui e'
-        stato scaricato dal tool AI esterno.
-        """
+    def _ensure_project(self) -> FVProject:
+        """Restituisce (creando se necessario) il progetto per il gioco corrente."""
         if self.project is None:
             self.project = FVProject(self.game_path)
             self.project.load()
-        self.project.create()
-        safe = self._safe_name(image_name)
-        dest = self.project.videos_dir / f"{safe}_vid{src.suffix.lower()}"
-        if dest.resolve() != src.resolve():
-            shutil.copy2(src, dest)
-        return dest
+        return self.project
+
+    def _materialize_association(self, entry: PatchEntry, video_src: Path,
+                                  last_frame_src: Path | None, loop: bool) -> Path:
+        """Copia video (e last frame) nella cartella di progetto rinominandoli
+        in base all'alias Ren'Py dell'immagine ("<alias>_vid.ext",
+        "<alias>_last.ext"), poi aggiorna i campi dell'entry del patch.
+
+        Questo e' l'UNICO punto che materializza le associazioni video, cosi'
+        il nome file finale non dipende mai da come si chiamava il file
+        scaricato dal tool AI esterno (es. "..._preview.webm", "..._v01.webm").
+        Funziona anche se l'immagine non era stata esportata esplicitamente.
+
+        Non aggiorna la UI ne' logga: usare _apply_video_association per le
+        associazioni singole (manuali), oppure gestire log/refresh a parte
+        per operazioni in batch (es. auto-associate).
+        """
+        project = self._ensure_project()
+        project.create()
+
+        video_dest = project.associate_video(entry.image_name, video_src, last_frame_src, loop)
+
+        safe = self._safe_name(entry.image_name)
+        last_frame_dest = None
+        last_frame_name = None
+        if last_frame_src and last_frame_src.exists():
+            last_frame_dest = project.last_frames_dir / f"{safe}_last{last_frame_src.suffix.lower()}"
+            last_frame_name = f"{safe}_last_frame"
+
+        entry.video_path = video_dest
+        entry.last_frame_path = last_frame_dest
+        entry.last_frame_name = last_frame_name
+        entry.loop = loop
+
+        return video_dest
+
+    def _apply_video_association(self, entry: PatchEntry, video_src: Path,
+                                  last_frame_src: Path | None, loop: bool):
+        """Come _materialize_association, ma per associazioni singole: aggiorna
+        anche la UI (tabella patch, evidenziazioni galleria) e logga."""
+        video_dest = self._materialize_association(entry, video_src, last_frame_src, loop)
+        self._populate_patch()
+        self._update_gallery_patch_highlights()
+        self._log(f"[Video] {entry.image_name} <- {video_dest.name}")
 
     def _manual_associate_video(self, entry: PatchEntry):
         """Associa (o sostituisce) manualmente il video di un'entry del patch,
@@ -1905,28 +1927,7 @@ class FanVideoTool(QMainWindow):
         dlg = AssociateDialog(entry.image_name, entry.start_image_path, self.tr, self)
         if dlg.exec() != QDialog.Accepted:
             return
-
-        video_dest = self._materialize_video_for_image(entry.image_name, cast(Path, dlg.video_path))
-
-        safe = self._safe_name(entry.image_name)
-        last_name = f"{safe}_last_frame" if dlg.last_frame_path else None
-
-        entry.video_path = video_dest
-        entry.last_frame_path = dlg.last_frame_path
-        entry.last_frame_name = last_name
-        entry.loop = dlg.loop
-
-        if self.project is not None:
-            try:
-                self.project.associate_video(
-                    entry.image_name, video_dest, dlg.last_frame_path, entry.loop,
-                )
-            except Exception:
-                pass
-
-        self._populate_patch()
-        self._update_gallery_patch_highlights()
-        self._log(f"[Manual] {entry.image_name} <- {video_dest.name}")
+        self._apply_video_association(entry, cast(Path, dlg.video_path), dlg.last_frame_path, dlg.loop)
 
     def _on_patch_row_changed(self):
         """Mostra la preview del video o dell'immagine della riga selezionata."""
@@ -2165,31 +2166,16 @@ class FanVideoTool(QMainWindow):
                 if lf_path:
                     last_frames += 1
 
-                safe = self._safe_name(entry.image_name)
-                last_name = f"{safe}_last_frame" if lf_path else None
-
-                entry.video_path = vpath
-                entry.last_frame_path = lf_path
-                entry.last_frame_name = last_name
                 # Forza loop=False: con last frame serve play-once
-                if entry.loop:
-                    entry.loop = False
+                loop = entry.loop
+                if lf_path and loop:
+                    loop = False
                     self._log(f"[Auto] {entry.image_name}: loop forced OFF (has last frame)")
 
-                # Salva nel project
-                if self.project is not None:
-                    try:
-                        self.project.associate_video(
-                            entry.image_name,
-                            vpath,
-                            lf_path,
-                            entry.loop,
-                        )
-                    except Exception:
-                        pass
+                video_dest = self._materialize_association(entry, vpath, lf_path, loop)
 
                 matched += 1
-                self._log(f"[Auto] {entry.image_name} <- {vpath.name}")
+                self._log(f"[Auto] {entry.image_name} <- {video_dest.name}")
 
         self.patch_progress.setValue(len(videos))
         self.btn_associate.setEnabled(True)
