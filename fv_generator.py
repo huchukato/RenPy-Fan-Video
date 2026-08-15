@@ -321,48 +321,34 @@ class FVGenerator:
                 # Nome fornito senza file (riferimento a immagine esistente)
                 last_frame_renpy = entry.last_frame_name
 
-            # --- Definizioni frame statici ---
-            # Il first frame deve avere un nome DIVERSO dall'immagine principale,
-            # altrimenti il Movie sovrascrive la definizione statica e
-            # start_image punta al Movie stesso ("refers to itself").
-            start_img = entry.start_image
-            if not start_img or start_img == entry.image_name:
-                start_img = self._safe_renpy_name(entry.image_name) + "_first_frame"
-
+            # --- Definizione immagine statica (start_image) ---
+            # Definisce l'alias come immagine statica PRIMA di sovrascriverlo
+            # con il Movie. Ren'Py risolve start_image="<alias>" con questa
+            # definizione (l'ultima prima del Movie), mostrando l'immagine
+            # originale finche' il video non parte.
             use_python = not self._is_valid_image_name(entry.image_name)
 
             if entry.start_image_path and entry.start_image_path.exists():
                 first_rel = self._image_rel_path(entry.start_image_path)
                 if use_python:
-                    lines.append(f'    $ renpy.image("{start_img}", "{first_rel}")')
+                    lines.append(f'    $ renpy.image("{entry.image_name}", "{first_rel}")')
                 else:
-                    lines.append(f'    image {start_img} = "{first_rel}"')
-                self.log(f"  first frame: {start_img} = {first_rel}")
+                    lines.append(f'    image {entry.image_name} = "{first_rel}"')
+                self.log(f"  static image: {entry.image_name} = {first_rel}")
 
             if last_frame_renpy and entry.last_frame_path:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
-                if self.screen_size:
-                    sw, sh = self.screen_size
-                    if use_python:
-                        lines.append(
-                            f'    $ renpy.image("{last_frame_renpy}", '
-                            f'Transform("{frame_rel}", size=({sw}, {sh})))'
-                        )
-                    else:
-                        lines.append(
-                            f'    image {last_frame_renpy} = Transform("{frame_rel}", '
-                            f'size=({sw}, {sh}))'
-                        )
+                if use_python:
+                    lines.append(f'    $ renpy.image("{last_frame_renpy}", "{frame_rel}")')
                 else:
-                    if use_python:
-                        lines.append(f'    $ renpy.image("{last_frame_renpy}", "{frame_rel}")')
-                    else:
-                        lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
+                    lines.append(f'    image {last_frame_renpy} = "{frame_rel}"')
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
+            # start_image = alias stesso: Ren'Py usa la definizione statica
+            # precedente (l'immagine originale) finche' il video non parte.
             movie_args = [f'play="{self.movies_folder}/fanvideomod/{video_filename}"']
-            movie_args.append(f'start_image="{start_img}"')
+            movie_args.append(f'start_image="{entry.image_name}"')
 
             # Scala il video alla risoluzione del gioco se rilevata
             if self.screen_size:
