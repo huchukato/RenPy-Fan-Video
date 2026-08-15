@@ -334,12 +334,35 @@ class FVGenerator:
                 # Nome fornito senza file (riferimento a immagine esistente)
                 last_frame_renpy = entry.last_frame_name
 
-            # --- Definizione last frame (opzionale) ---
-            # L'alias viene sovrascritto con il Movie. Non serve ridefinire
-            # l'immagine statica ne' usare start_image: il video parte
-            # direttamente quando lo script raggiunge l'alias.
-            # Il last frame viene mostrato quando il video termina (loop=False).
+            # --- Definizione first frame e last frame ---
+            # start_image serve per evitare il flash nero: Ren'Py mostra
+            # l'immagine statica mentre decodifica il primo frame del video.
+            # Il nome del first frame deve DIFFERIRE dall'alias, altrimenti
+            # il Movie (ultima definizione in init 999) sovrascrive la
+            # statica e start_image punta al Movie stesso ("refers to itself").
+            #
+            # NOTA: size= nel Movie rompe start_image (bug noto di Ren'Py,
+            # vedi issue #4983). I video sono gia' alla risoluzione giusta,
+            # quindi non usiamo size=.
             use_python = not self._is_valid_image_name(entry.image_name)
+
+            start_img = self._safe_renpy_name(entry.image_name) + "_first_frame"
+
+            # Copia l'immagine statica in images/fanvideomod/ e definiscila
+            if entry.start_image_path and entry.start_image_path.exists():
+                safe = self._safe_filename(entry.image_name)
+                ext = entry.start_image_path.suffix.lower()
+                static_filename = f"{safe}{ext}"
+                static_dest = self.frames_dir / static_filename
+                static_dest.parent.mkdir(parents=True, exist_ok=True)
+                if static_dest.resolve() != entry.start_image_path.resolve():
+                    shutil.copy2(entry.start_image_path, static_dest)
+                static_rel = f"fanvideomod/{static_filename}"
+                if use_python:
+                    lines.append(f'    $ renpy.image("{start_img}", "{static_rel}")')
+                else:
+                    lines.append(f'    image {start_img} = "{static_rel}"')
+                self.log(f"  first frame: {start_img} = {static_rel}")
 
             if last_frame_renpy and entry.last_frame_path:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
@@ -350,15 +373,11 @@ class FVGenerator:
                 self.log(f"  last frame: {last_frame_renpy} = {frame_rel}")
 
             # --- Genera riga image ---
-            # Non usiamo start_image: punterebbe al Movie stesso (l'ultima
-            # definizione vince in init 999). Il video parte direttamente
-            # quando lo script raggiunge l'alias. image="<last>" gestisce
-            # il frame finale quando il video termina (loop=False).
+            # start_image="<alias>_first_frame" mostra la statica mentre
+            # il video si avvia (evita flash nero).
+            # NON usiamo size= perche' rompe start_image in Ren'Py.
             movie_args = [f'play="{self.movies_folder}/fanvideomod/{video_filename}"']
-
-            # Scala il video alla risoluzione del gioco se rilevata
-            if self.screen_size:
-                movie_args.append(f'size=({self.screen_size[0]}, {self.screen_size[1]})')
+            movie_args.append(f'start_image="{start_img}"')
 
             if last_frame_renpy:
                 movie_args.append(f'image="{last_frame_renpy}"')
