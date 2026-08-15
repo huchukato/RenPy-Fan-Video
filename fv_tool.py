@@ -2404,7 +2404,11 @@ class FanVideoTool(QMainWindow):
             return
 
         # Scegli dove salvare lo zip
-        default_name = f"fan_video_mod_{self.game_path.name.replace('.app', '')}.zip"
+        # Formato: Fan_Video_Mod_v<version>_<game>_<author>.zip
+        _MOD_VERSION = "0.1.0"
+        _MOD_AUTHOR = "huchukato"
+        game_name = self.game_path.name.replace(".app", "")
+        default_name = f"Fan_Video_Mod_v{_MOD_VERSION}_{game_name}_{_MOD_AUTHOR}.zip"
         if self.game_path:
             default_dir = self.game_path.parent
         else:
