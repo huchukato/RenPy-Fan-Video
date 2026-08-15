@@ -2284,6 +2284,17 @@ class FanVideoTool(QMainWindow):
             return
 
         try:
+            # Fix start_image_path: deve puntare all'immagine ORIGINALE
+            # del gioco (in game/images/...), non al file esportato in
+            # sources/ (che Ren'Py non trova -> schermo nero).
+            if self.images:
+                orig_paths = {img.name: img.file_path for img in self.images
+                              if img.is_resolved and img.file_path}
+                for a in self.assignments:
+                    orig = orig_paths.get(a.image_name)
+                    if orig and orig.exists():
+                        a.start_image_path = orig
+
             gen = FVGenerator(self.game_dir, log_callback=lambda m: self._log(m))
             rpy_path = gen.generate(self.assignments)
 
@@ -2426,6 +2437,16 @@ class FanVideoTool(QMainWindow):
         try:
             import zipfile
             from datetime import datetime
+
+            # Fix start_image_path: deve puntare all'immagine ORIGINALE
+            # del gioco, non al file esportato in sources/.
+            if self.images:
+                orig_paths = {img.name: img.file_path for img in self.images
+                              if img.is_resolved and img.file_path}
+                for a in self.assignments:
+                    orig = orig_paths.get(a.image_name)
+                    if orig and orig.exists():
+                        a.start_image_path = orig
 
             # Genera la patch nel gioco reale (come _generate_patch)
             gen = FVGenerator(self.game_dir, log_callback=lambda m: self._log(m))
