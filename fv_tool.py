@@ -2162,10 +2162,22 @@ class FanVideoTool(QMainWindow):
             self._log(f"[Clean] {renamed} files renamed")
 
         # Mappa: safe_name -> video_path
+        # Durante il matching, strip dei suffissi che il tool aggiunge
+        # ai video/last-frame materializzati (_vid, _last), cosi'
+        # l'auto-associate funziona anche se l'utente la punta sulla
+        # cartella videos/ del progetto invece che sull'output di ComfyUI.
+        _ASSOC_SUFFIXES = ('_vid', '_last', '_last_frame')
         videos = {}
         for f in video_dir.iterdir():
             if f.is_file() and f.suffix.lower() == ".webm":
-                videos[self._safe_name(f.stem)] = f
+                stem = f.stem
+                # Strip suffissi noti (case-insensitive) prima del matching
+                stem_lower = stem.lower()
+                for suf in _ASSOC_SUFFIXES:
+                    if stem_lower.endswith(suf):
+                        stem = stem[:-len(suf)]
+                        break
+                videos[self._safe_name(stem)] = f
 
         if not videos:
             QMessageBox.information(self, self.tr['title'], self.tr['auto_assoc_nomatch'])
