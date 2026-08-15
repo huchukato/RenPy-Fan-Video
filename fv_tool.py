@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import cast
 
 from PySide6.QtCore import Qt, QThread, Signal, QSize, QObject, QUrl
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QPixmap, QColor
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
@@ -1671,7 +1671,8 @@ class FanVideoTool(QMainWindow):
     def _update_gallery_patch_highlights(self):
         """Evidenzia in giallo le righe della galleria gia' presenti nel patch."""
         patch_names = {a.image_name for a in self.assignments}
-        default_color = self.palette().text().color()
+        highlight = QColor(255, 200, 0, 60)   # giallo semi-trasparente (sfondo)
+        default_color = QColor(0, 0, 0, 0)     # trasparente (nessun sfondo)
         for row in range(self.tbl_images.rowCount()):
             name_item = self.tbl_images.item(row, 1)
             if name_item is None:
@@ -1679,11 +1680,11 @@ class FanVideoTool(QMainWindow):
             img = name_item.data(Qt.UserRole)
             if img is None:
                 continue
-            color = Qt.yellow if img.name in patch_names else default_color
+            color = highlight if img.name in patch_names else default_color
             for col in range(self.tbl_images.columnCount()):
                 item = self.tbl_images.item(row, col)
                 if item is not None:
-                    item.setForeground(color)
+                    item.setBackground(color)
 
     def _repopulate_file_filter(self):
         """Ripopola il combo dei file .rpy mantenendo la selezione."""
