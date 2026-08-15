@@ -232,6 +232,17 @@ class FVGenerator:
         return re.sub(r"[^\w]+", "_", name).strip("_")
 
     @staticmethod
+    def _safe_filename(name: str) -> str:
+        """Converte un nome immagine Ren'Py in nome file safe per game/images/.
+
+        Come _safe_renpy_name ma lowercase (i file su disco vengono cercati
+        case-insensitive da Ren'Py, ma usiamo lowercase per coerenza con
+        i vecchi patch che funzionavano).
+        """
+        import re
+        return re.sub(r"[^\w]+", "_", name).strip("_").lower()
+
+    @staticmethod
     def _is_valid_image_name(name: str) -> bool:
         """Verifica se un nome e' valido per `image <name> = ...` di Ren'Py.
 
@@ -321,20 +332,35 @@ class FVGenerator:
                 # Nome fornito senza file (riferimento a immagine esistente)
                 last_frame_renpy = entry.last_frame_name
 
+            # --- Copia immagine statica in game/images/ ---
+            # L'immagine viene copiata in game/images/ con un nome safe
+            # (lowercase, underscore) e referenziata con solo il nome file.
+            # Ren'Py cerca automaticamente in game/images/, quindi non serve
+            # il path completo. Questo e' l'approccio che funzionava prima.
+            use_python = not self._is_valid_image_name(entry.image_name)
+
+            static_filename = None
+            if entry.start_image_path and entry.start_image_path.exists():
+                # Nome safe: <alias_safe>.<estensione>
+                safe = self._safe_filename(entry.image_name)
+                ext = entry.start_image_path.suffix.lower()
+                static_filename = f"{safe}{ext}"
+                static_dest = self.game_dir / "images" / static_filename
+                static_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(entry.start_image_path, static_dest)
+                self.log(f"  static image: {static_filename} -> images/")
+
             # --- Definizione immagine statica (start_image) ---
             # Definisce l'alias come immagine statica PRIMA di sovrascriverlo
             # con il Movie. Ren'Py risolve start_image="<alias>" con questa
             # definizione (l'ultima prima del Movie), mostrando l'immagine
             # originale finche' il video non parte.
-            use_python = not self._is_valid_image_name(entry.image_name)
-
-            if entry.start_image_path and entry.start_image_path.exists():
-                first_rel = self._image_rel_path(entry.start_image_path)
+            if static_filename:
                 if use_python:
-                    lines.append(f'    $ renpy.image("{entry.image_name}", "{first_rel}")')
+                    lines.append(f'    $ renpy.image("{entry.image_name}", "{static_filename}")')
                 else:
-                    lines.append(f'    image {entry.image_name} = "{first_rel}"')
-                self.log(f"  static image: {entry.image_name} = {first_rel}")
+                    lines.append(f'    image {entry.image_name} = "{static_filename}"')
+                self.log(f"  image {entry.image_name} = \"{static_filename}\"")
 
             if last_frame_renpy and entry.last_frame_path:
                 frame_rel = f"fanvideomod/{frame_dest.name}"
