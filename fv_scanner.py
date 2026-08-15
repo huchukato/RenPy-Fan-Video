@@ -91,6 +91,18 @@ class FVScanner:
     # Utility
     # ------------------------------------------------------------------ #
     @staticmethod
+    def _natural_key(s: str) -> list:
+        """Chiave di ordinamento naturale (numeric-aware) per stringhe.
+
+        Ordina "episode2" prima di "episode10" invece che il contrario.
+        Ogni elemento e' una tupla (flag, valore) con flag 0 per il testo
+        e 1 per i numeri, cosi' il confronto tra elementi di tipo diverso
+        e' sempre sicuro (mai str comparato con int).
+        """
+        return [(1, int(t)) if t.isdigit() else (0, t.lower())
+                for t in re.split(r'(\d+)', s) if t != '']
+
+    @staticmethod
     def _normalize(name: str) -> str:
         """Normalizza un nome immagine per il matching con i file.
 
@@ -265,6 +277,18 @@ class FVScanner:
                                      'fan_videos', 'fan_video_patch'])
             ]
 
+        # Ordina i file in ordine "naturale" (episode2 prima di episode10).
+        # Questo determina anche l'ordine di scansione di scene/show, che
+        # useremo per calcolare la timeline di apparizione delle immagini
+        # (vedi ordinamento finale piu' sotto).
+        try:
+            rpy_files = sorted(
+                rpy_files,
+                key=lambda f: self._natural_key(str(f.relative_to(self.game_dir)))
+            )
+        except ValueError:
+            rpy_files = sorted(rpy_files, key=lambda f: self._natural_key(str(f)))
+
         self.log(f"Scansione di {len(rpy_files)} file .rpy...")
 
         # Fase 1: parse definizioni image (0-40%)
@@ -323,8 +347,20 @@ class FVScanner:
                 definition_line=def_line,
             ))
 
-        # Ordina: prima per risolte, poi per nome
-        images.sort(key=lambda img: (not img.is_resolved, img.name.lower()))
+        # Ordina per "timeline": prima le immagini risolte, poi in base a
+        # dove compaiono per la prima volta nel gioco (file .rpy in ordine
+        # naturale, poi numero di riga in quel file). Le immagini vengono
+        # scansionate seguendo rpy_files (gia' ordinato sopra) linea per
+        # linea, quindi used_in[0] e' gia' la prima occorrenza in ordine
+        # di timeline.
+        def _timeline_key(img: StaticImage):
+            if img.used_in:
+                first_file, first_line = img.used_in[0]
+                return (not img.is_resolved, self._natural_key(str(first_file)),
+                        first_line, img.name.lower())
+            return (not img.is_resolved, [], 0, img.name.lower())
+
+        images.sort(key=_timeline_key)
 
         n_resolved = sum(1 for img in images if img.is_resolved)
         n_movie = sum(1 for img in images if img.already_movie)

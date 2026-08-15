@@ -54,18 +54,38 @@ class NaturalSortItem(QTableWidgetItem):
 
     @staticmethod
     def _natural_key(s: str) -> list:
-        return [int(t) if t.isdigit() else t.lower()
-                for t in re.split(r'(\d+)', s)]
+        # Ogni elemento e' una tupla (flag, valore): flag 0 per il testo,
+        # 1 per i numeri. Cosi' il confronto e' sempre tra tipi omogenei
+        # (mai str comparato con int) indipendentemente da come si
+        # alternano testo/numeri nelle due stringhe confrontate.
+        return [(1, int(t)) if t.isdigit() else (0, t.lower())
+                for t in re.split(r'(\d+)', s) if t != '']
 
     def __lt__(self, other):
         if not isinstance(other, QTableWidgetItem):
             return super().__lt__(other)
-        my_text = self.text()
-        other_text = other.text()
-        try:
-            return self._natural_key(my_text) < self._natural_key(other_text)
-        except (TypeError, ValueError):
-            return my_text.lower() < other_text.lower()
+        return self._natural_key(self.text()) < self._natural_key(other.text())
+
+
+class SourceSortItem(NaturalSortItem):
+    """Item per la colonna "Source" della Galleria: ordina per timeline
+    (prima per file .rpy in ordine naturale, poi per numero di riga),
+    non solo per nome del file. Usa i dati (StaticImage) salvati in
+    Qt.UserRole per recuperare la riga di prima apparizione.
+    """
+
+    def __lt__(self, other):
+        if not isinstance(other, QTableWidgetItem):
+            return super().__lt__(other)
+        my_img = self.data(Qt.UserRole)
+        other_img = other.data(Qt.UserRole)
+        if my_img is not None and other_img is not None:
+            my_used = my_img.used_in[0] if my_img.used_in else (None, 0)
+            other_used = other_img.used_in[0] if other_img.used_in else (None, 0)
+            my_key = (self._natural_key(str(my_used[0])), my_used[1])
+            other_key = (self._natural_key(str(other_used[0])), other_used[1])
+            return my_key < other_key
+        return super().__lt__(other)
 
 
 class PatchTable(QTableWidget):
@@ -131,7 +151,6 @@ TRANSLATIONS = {
         'col_line': "Line",
         'col_movie': "Movie",
         'btn_export': "Export image",
-        'btn_add_patch': "Add to patch",
         'btn_export_tip': "Copy the selected image to the project folder "
                           "(~/FanVideoProjects/<game>/sources/) so you can use it "
                           "as input to generate the video with external AI tools.",
@@ -271,7 +290,6 @@ TRANSLATIONS = {
         'col_line': "Riga",
         'col_movie': "Movie",
         'btn_export': "Esporta immagine",
-        'btn_add_patch': "Aggiungi al patch",
         'btn_export_tip': "Copia l'immagine selezionata nella cartella di progetto "
                           "(~/FanVideoProjects/<gioco>/sources/) cosi' puoi usarla "
                           "come input per generare il video con tool AI esterni.",
@@ -407,7 +425,6 @@ TRANSLATIONS = {
         'col_line': "Linea",
         'col_movie': "Movie",
         'btn_export': "Exportar imagen",
-        'btn_add_patch': "Anadir al patch",
         'btn_export_tip': "Copia la imagen seleccionada a la carpeta del proyecto "
                           "(~/FanVideoProjects/<juego>/sources/) para usarla "
                           "como entrada para generar el video con herramientas "
@@ -1087,23 +1104,20 @@ class FanVideoTool(QMainWindow):
         btn_row = QHBoxLayout()
         self.btn_export = QPushButton("")
         self.btn_export.clicked.connect(self._export_image)
-        self.btn_add = QPushButton("")
-        self.btn_add.clicked.connect(self._add_to_patch)
         self.btn_sources = QPushButton("")
         self.btn_sources.clicked.connect(self._open_sources_folder)
         btn_row.addWidget(self.btn_export)
-        btn_row.addWidget(self.btn_add)
         btn_row.addWidget(self.btn_sources)
         left.addLayout(btn_row)
 
-        hbox.addLayout(left, 2)
+        hbox.addLayout(left, 1)
 
-        # Anteprima destra
+        # Anteprima destra (piu' spazio per vedere meglio i dettagli dell'immagine)
         right = QVBoxLayout()
         self.lbl_preview_title = QLabel("")
         self.lbl_preview = QLabel()
         self.lbl_preview.setAlignment(Qt.AlignCenter)
-        self.lbl_preview.setMinimumSize(320, 240)
+        self.lbl_preview.setMinimumSize(480, 360)
         self.lbl_preview.setStyleSheet("background-color: #16263a; border: 1px solid #2a4055; border-radius: 4px;")
         self.lbl_preview.setScaledContents(False)
         right.addWidget(self.lbl_preview_title)
@@ -1268,7 +1282,6 @@ class FanVideoTool(QMainWindow):
         )
         self.btn_export.setText(tr['btn_export'])
         self.btn_export.setToolTip(tr['btn_export_tip'])
-        self.btn_add.setText(tr['btn_add_patch'])
         self.btn_sources.setText(tr['btn_open_sources'])
         self.btn_sources.setToolTip(tr['btn_open_sources'])
         self.lbl_preview_title.setText(tr['preview'])
@@ -1634,7 +1647,7 @@ class FanVideoTool(QMainWindow):
             self.tbl_images.setItem(i, 1, name_item)
 
             src = img.used_in[0] if img.used_in else (Path("-"), 0)
-            src_item = NaturalSortItem(src[0].name if hasattr(src[0], 'name') else str(src[0]))
+            src_item = SourceSortItem(src[0].name if hasattr(src[0], 'name') else str(src[0]))
             src_item.setData(Qt.UserRole, img)
             src_item.setToolTip(str(src[0]))
             src_item.setFlags(src_item.flags() & ~Qt.ItemIsEditable)
@@ -1762,50 +1775,6 @@ class FanVideoTool(QMainWindow):
             f"{self.tr['already_replaced']}: "
             f"{self.tr['yes'] if img.already_movie else self.tr['no']}"
         )
-
-    def _add_to_patch(self):
-        row = self.tbl_images.currentRow()
-        if row < 0:
-            QMessageBox.information(self, self.tr['title'], self.tr['select_image_first'])
-            return
-
-        item = self.tbl_images.item(row, 1)
-        if item is None:
-            return
-        img = item.data(Qt.UserRole)
-        if img is None:
-            return
-
-        if not img.is_resolved:
-            QMessageBox.warning(self, self.tr['error_title'], self.tr['image_not_resolved'].format(img.name))
-            return
-
-        if img.already_movie:
-            resp = QMessageBox.question(
-                self, self.tr['already_movie_title'],
-                self.tr['already_movie_msg'].format(img.name),
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if resp != QMessageBox.Yes:
-                return
-
-        self.assignments = [a for a in self.assignments if a.image_name != img.name]
-
-        dlg = AssociateDialog(img.name, img.file_path, self.tr, self)
-        if dlg.exec() != QDialog.Accepted:
-            return
-
-        safe = self._safe_name(img.name)
-        start_name = f"{safe}_first_frame"
-
-        new_entry = PatchEntry(
-            image_name=img.name,
-            start_image=start_name,
-            start_image_path=img.file_path,
-        )
-        self.assignments.append(new_entry)
-        self._apply_video_association(new_entry, cast(Path, dlg.video_path), dlg.last_frame_path, dlg.loop)
-        self.tabs.setCurrentIndex(2)
 
     def _export_image(self):
         row = self.tbl_images.currentRow()
