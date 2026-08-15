@@ -1918,11 +1918,21 @@ class FanVideoTool(QMainWindow):
 
     def _manual_associate_video(self, entry: PatchEntry):
         """Associa (o sostituisce) manualmente il video di un'entry del patch,
-        direttamente dal tab Patch senza passare dalla Galleria."""
-        dlg = AssociateDialog(entry.image_name, entry.start_image_path, self.tr, self)
-        if dlg.exec() != QDialog.Accepted:
+        direttamente dal tab Patch senza passare dalla Galleria.
+
+        Apre direttamente il file picker (niente popup intermedio): il loop
+        si gestisce con doppio click sulla colonna Loop del Patch.
+        """
+        path, _ = QFileDialog.getOpenFileName(
+            self, self.tr['dlg_select_video_title'], "", "WebM (*.webm)",
+        )
+        if not path:
             return
-        self._apply_video_association(entry, cast(Path, dlg.video_path), dlg.last_frame_path, dlg.loop)
+        video_src = Path(path)
+        # Estrai last frame automaticamente
+        lf_path = self._extract_last_frame_for_video(video_src)
+        # Mantieni il loop attuale dell'entry (l'utente lo cambia dal Patch)
+        self._apply_video_association(entry, video_src, lf_path, entry.loop)
 
     def _add_video_to_selected(self):
         """Pulsante 'Aggiungi Video': fallback manuale quando l'auto-associate
