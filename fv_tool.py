@@ -1625,7 +1625,8 @@ class FanVideoTool(QMainWindow):
     def _get_movies_folder(self) -> str:
         """Rileva il nome case-sensitive della cartella video del gioco."""
         if self.game_dir:
-            for candidate in ("movies", "Movies", "MOVIES"):
+            for candidate in ("videos", "Videos", "VIDEOS",
+                              "movies", "Movies", "MOVIES"):
                 if (self.game_dir / candidate).is_dir():
                     return candidate
         return "movies"

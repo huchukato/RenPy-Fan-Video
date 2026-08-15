@@ -64,9 +64,10 @@ class FVGenerator:
 
         self.patch_dir = self.game_dir  # file .rpy va direttamente in game/
         # Rileva il nome corretto della cartella video (case-sensitive)
-        # Alcuni giochi usano "Movies", altri "movies"
+        # Alcuni giochi usano "Movies", altri "movies", altri "videos"
         self.movies_folder = "movies"
-        for candidate in ("movies", "Movies", "MOVIES"):
+        for candidate in ("videos", "Videos", "VIDEOS",
+                          "movies", "Movies", "MOVIES"):
             if (self.game_dir / candidate).is_dir():
                 self.movies_folder = candidate
                 break
@@ -301,7 +302,7 @@ class FVGenerator:
         lines.append("# indipendentemente dall'ordine di caricamento dei file.")
         lines.append("#")
         lines.append("# Per disinstallare: elimina questo file fan_videos.rpy")
-        lines.append("# e i video associati in game/movies/fanvideomod/ (vedi lista sotto).")
+        lines.append(f"# e i video associati in game/{self.movies_folder}/fanvideomod/ (vedi lista sotto).")
         lines.append("# ============================================================")
         lines.append("")
         lines.append("init 999:")
@@ -313,7 +314,7 @@ class FVGenerator:
             # --- Copia video ---
             video_filename = self._unique_video_name(entry.video_path)
             video_dest = self.videos_dir / video_filename
-            self.log(f"Copia video: {entry.video_path.name} -> movies/fanvideomod/{video_filename}")
+            self.log(f"Copia video: {entry.video_path.name} -> {self.movies_folder}/fanvideomod/{video_filename}")
             shutil.copy2(entry.video_path, video_dest)
             copied_videos.append(video_dest)
 
@@ -345,12 +346,14 @@ class FVGenerator:
                 safe = self._safe_filename(entry.image_name)
                 ext = entry.start_image_path.suffix.lower()
                 static_filename = f"{safe}{ext}"
-                static_dest = self.game_dir / "images" / static_filename
+                # Copia in game/images/fanvideomod/ (non in game/images/ radice
+                # per non sporcare la cartella immagini del gioco)
+                static_dest = self.frames_dir / static_filename
                 static_dest.parent.mkdir(parents=True, exist_ok=True)
                 # Skip se source e destination sono lo stesso file
                 if static_dest.resolve() != entry.start_image_path.resolve():
                     shutil.copy2(entry.start_image_path, static_dest)
-                    self.log(f"  static image: {static_filename} -> images/")
+                    self.log(f"  static image: {static_filename} -> images/fanvideomod/")
                 else:
                     self.log(f"  static image: {static_filename} (already in place)")
 
