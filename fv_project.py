@@ -96,8 +96,18 @@ class FVProject:
 
     @staticmethod
     def _safe_filename(name: str) -> str:
-        """Converte un nome immagine Ren'Py in nome file safe."""
-        return re.sub(r"[^\w]+", "_", name).strip("_").lower()
+        """Converte un nome immagine Ren'Py in nome file safe.
+
+        Sostituisce spazi e caratteri speciali con underscore, ma
+        PRESERVA il case originale dell'alias Ren'Py. Questo perche':
+          - il file esportato in sources/ deve avere lo stesso nome
+            che l'utente vede nella GUI (es. "MBD_S2_EP1_StripClub_7")
+          - quando l'utente carica l'immagine in ComfyUI e genera un
+            video, il video avra' lo stesso nome del file di input
+          - l'auto-associazione usa _safe_name() (che lowercase) per
+            il confronto, quindi il matching resta case-insensitive
+        """
+        return re.sub(r"[^\w]+", "_", name).strip("_")
 
     # ------------------------------------------------------------------ #
     # Lifecycle
