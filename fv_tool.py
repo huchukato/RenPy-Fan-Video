@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -161,8 +162,8 @@ TRANSLATIONS = {
         'not_resolved': "not resolved",
         # Tab 3 - Patch
         'patch_info': "<b style='color:#facc15'>Pending</b> entries have the image "
-                      "exported but no video yet. <b>Double-click</b> a row to "
-                      "associate the generated video.",
+                      "exported but no video yet. <b>Double-click</b> the Video cell "
+                      "of a row to associate (or replace) the generated video manually.",
         'col_image': "Image",
         'col_video': "Video",
         'col_last_frame': "Last frame",
@@ -296,8 +297,8 @@ TRANSLATIONS = {
         'no': "No",
         'not_resolved': "non risolto",
         'patch_info': "Le entry <b style='color:#facc15'>in attesa</b> hanno l'immagine "
-                      "esportata ma senza video. Fai <b>doppio click</b> su una riga "
-                      "per associare il video generato.",
+                      "esportata ma senza video. Fai <b>doppio click</b> sulla cella "
+                      "Video di una riga per associare (o sostituire) il video manualmente.",
         'col_image': "Immagine",
         'col_video': "Video",
         'col_last_frame': "Last frame",
@@ -432,7 +433,7 @@ TRANSLATIONS = {
         'not_resolved': "no resuelto",
         'patch_info': "Las entradas <b style='color:#facc15'>pendientes</b> tienen "
                       "la imagen exportada pero sin video. Haz <b>doble clic</b> en "
-                      "una fila para asociar el video generado.",
+                      "la celda Video de una fila para asociar (o reemplazar) el video manualmente.",
         'col_image': "Imagen",
         'col_video': "Video",
         'col_last_frame': "Ultimo frame",
@@ -570,14 +571,15 @@ class AnalyzeWorker(QObject):
 # Dialog associazione video
 # ---------------------------------------------------------------------- #
 class AssociateDialog(QDialog):
-    def __init__(self, image: StaticImage, tr: dict, parent=None):
+    def __init__(self, image_name: str, image_file_path: Path | None, tr: dict, parent=None):
         super().__init__(parent)
-        self.image = image
+        self.image_name = image_name
+        self.image_file_path = image_file_path
         self.tr = tr
         self.video_path: Path | None = None
         self.last_frame_path: Path | None = None
         self.loop = False  # default: niente loop
-        self.setWindowTitle(tr['dlg_associate_title'].format(image.name))
+        self.setWindowTitle(tr['dlg_associate_title'].format(image_name))
         self.setMinimumWidth(420)
         self._build_ui()
 
@@ -585,9 +587,9 @@ class AssociateDialog(QDialog):
         layout = QVBoxLayout(self)
         tr = self.tr
 
-        file_label = self.image.file_path.name if self.image.file_path else tr['not_resolved']
+        file_label = self.image_file_path.name if self.image_file_path else tr['not_resolved']
         info = QLabel(
-            f"<b>{tr['dlg_image']}:</b> {self.image.name}<br>"
+            f"<b>{tr['dlg_image']}:</b> {self.image_name}<br>"
             f"<b>{tr['dlg_file']}:</b> {file_label}"
         )
         info.setWordWrap(True)
@@ -1770,9 +1772,11 @@ class FanVideoTool(QMainWindow):
 
         self.assignments = [a for a in self.assignments if a.image_name != img.name]
 
-        dlg = AssociateDialog(img, self.tr, self)
+        dlg = AssociateDialog(img.name, img.file_path, self.tr, self)
         if dlg.exec() != QDialog.Accepted:
             return
+
+        video_dest = self._materialize_video_for_image(img.name, cast(Path, dlg.video_path))
 
         safe = self._safe_name(img.name)
         start_name = f"{safe}_first_frame"
@@ -1781,7 +1785,7 @@ class FanVideoTool(QMainWindow):
         self.assignments.append(
             PatchEntry(
                 image_name=img.name,
-                video_path=cast(Path, dlg.video_path),
+                video_path=video_dest,
                 start_image=start_name,
                 start_image_path=img.file_path,
                 last_frame_path=dlg.last_frame_path,
@@ -1854,9 +1858,10 @@ class FanVideoTool(QMainWindow):
     # Patch
     # ------------------------------------------------------------------ #
     def _on_patch_double_click(self, item):
-        """Double-click sulla tabella patch: toggle loop se colonna 3."""
+        """Double-click sulla tabella patch: toggle loop (colonna 3) oppure
+        associa/sostituisce manualmente il video (colonna 1)."""
         col = self.tbl_patch.column(item)
-        if col != 3:  # col_loop
+        if col not in (1, 3):
             return
         row = self.tbl_patch.row(item)
         if row < 0 or row >= len(self.assignments):
@@ -1868,9 +1873,60 @@ class FanVideoTool(QMainWindow):
         entry = next((a for a in self.assignments if a.image_name == name_item.text()), None)
         if not entry:
             return
-        entry.loop = not entry.loop
+
+        if col == 3:  # col_loop
+            entry.loop = not entry.loop
+            self._populate_patch()
+            self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
+        elif col == 1:  # col_video
+            self._manual_associate_video(entry)
+
+    def _materialize_video_for_image(self, image_name: str, src: Path) -> Path:
+        """Copia il video associato in una cartella del progetto rinominandolo
+        in base al nome dell'immagine Ren'Py (es. "nomeimmagine_vid.webm").
+
+        In questo modo il nome del file video non dipende piu' dal nome
+        (spesso "sporco", con suffissi tipo _preview o _v01) con cui e'
+        stato scaricato dal tool AI esterno.
+        """
+        if self.project is None:
+            self.project = FVProject(self.game_path)
+            self.project.load()
+        self.project.create()
+        safe = self._safe_name(image_name)
+        dest = self.project.videos_dir / f"{safe}_vid{src.suffix.lower()}"
+        if dest.resolve() != src.resolve():
+            shutil.copy2(src, dest)
+        return dest
+
+    def _manual_associate_video(self, entry: PatchEntry):
+        """Associa (o sostituisce) manualmente il video di un'entry del patch,
+        direttamente dal tab Patch senza passare dalla Galleria."""
+        dlg = AssociateDialog(entry.image_name, entry.start_image_path, self.tr, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        video_dest = self._materialize_video_for_image(entry.image_name, cast(Path, dlg.video_path))
+
+        safe = self._safe_name(entry.image_name)
+        last_name = f"{safe}_last_frame" if dlg.last_frame_path else None
+
+        entry.video_path = video_dest
+        entry.last_frame_path = dlg.last_frame_path
+        entry.last_frame_name = last_name
+        entry.loop = dlg.loop
+
+        if self.project is not None:
+            try:
+                self.project.associate_video(
+                    entry.image_name, video_dest, dlg.last_frame_path, entry.loop,
+                )
+            except Exception:
+                pass
+
         self._populate_patch()
-        self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
+        self._update_gallery_patch_highlights()
+        self._log(f"[Manual] {entry.image_name} <- {video_dest.name}")
 
     def _on_patch_row_changed(self):
         """Mostra la preview del video o dell'immagine della riga selezionata."""
