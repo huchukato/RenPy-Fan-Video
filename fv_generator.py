@@ -347,8 +347,12 @@ class FVGenerator:
                 static_filename = f"{safe}{ext}"
                 static_dest = self.game_dir / "images" / static_filename
                 static_dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(entry.start_image_path, static_dest)
-                self.log(f"  static image: {static_filename} -> images/")
+                # Skip se source e destination sono lo stesso file
+                if static_dest.resolve() != entry.start_image_path.resolve():
+                    shutil.copy2(entry.start_image_path, static_dest)
+                    self.log(f"  static image: {static_filename} -> images/")
+                else:
+                    self.log(f"  static image: {static_filename} (already in place)")
 
             # --- Definizione immagine statica (start_image) ---
             # Definisce l'alias come immagine statica PRIMA di sovrascriverlo
