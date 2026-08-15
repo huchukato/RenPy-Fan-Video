@@ -1583,6 +1583,13 @@ class FanVideoTool(QMainWindow):
                         a.start_image_path = img.file_path
                         break
 
+        # Riordina le assignments per timeline del gioco (non per ordine
+        # di aggiunta): ora che self.images e' disponibile possiamo usare
+        # l'ordine di apparizione negli .rpy come riferimento.
+        # Nota: _populate_patch() chiamera' comunque _sort_assignments_by_timeline,
+        # ma lo facciamo anche qui per salvare la sessione gia' ordinata.
+        self._sort_assignments_by_timeline()
+
         self._populate_patch()
         self._save_session()
         self.tabs.setCurrentIndex(1)
@@ -2006,7 +2013,28 @@ class FanVideoTool(QMainWindow):
         self.video_player.stop()
         self.video_player.setSource(QUrl())
 
+    def _sort_assignments_by_timeline(self):
+        """Riordina self.assignments per timeline del gioco (ordine di
+        apparizione negli .rpy), non per ordine di aggiunta.
+
+ Usa self.images (già in ordine timeline dallo scanner) come
+ riferimento. Le entry senza corrispondenza in self.images vanno
+ in fondo, in ordine alfabetico.
+        """
+        if not self.images:
+            return
+        # Mappa: image_name -> indice timeline
+        timeline_idx = {img.name: i for i, img in enumerate(self.images)}
+        self.assignments.sort(
+            key=lambda a: (timeline_idx.get(a.image_name, len(self.images)),
+                           a.image_name.lower())
+        )
+
     def _populate_patch(self):
+        # Mantieni sempre le assignments in ordine timeline del gioco
+        # (non in ordine di aggiunta), cosi' l'utente vede il Patch
+        # nell'ordine naturale del gioco.
+        self._sort_assignments_by_timeline()
         self.tbl_patch.setSortingEnabled(False)
         self.tbl_patch.setRowCount(len(self.assignments))
         for i, a in enumerate(self.assignments):
