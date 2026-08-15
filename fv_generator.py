@@ -63,9 +63,10 @@ class FVGenerator:
                 self.game_dir = self.game_path
 
         self.patch_dir = self.game_dir  # file .rpy va direttamente in game/
-        # Rileva il nome corretto della cartella video (case-sensitive)
-        # Alcuni giochi usano "Movies", altri "movies", altri "videos"
-        self.movies_folder = "movies"
+        # Rileva il nome corretto della cartella video (case-sensitive).
+        # Se il gioco ha gia' una cartella video (videos/ o movies/),
+        # usa quella. Se non ne ha nessuna, crea videos/ (standard Ren'Py).
+        self.movies_folder = "videos"
         for candidate in ("videos", "Videos", "VIDEOS",
                           "movies", "Movies", "MOVIES"):
             if (self.game_dir / candidate).is_dir():

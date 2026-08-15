@@ -1623,13 +1623,15 @@ class FanVideoTool(QMainWindow):
         return re.sub(r"[^\w]+", "_", name).strip("_").lower()
 
     def _get_movies_folder(self) -> str:
-        """Rileva il nome case-sensitive della cartella video del gioco."""
+        """Rileva il nome case-sensitive della cartella video del gioco.
+        Se il gioco non ha una cartella video, usa 'videos' (standard Ren'Py).
+        """
         if self.game_dir:
             for candidate in ("videos", "Videos", "VIDEOS",
                               "movies", "Movies", "MOVIES"):
                 if (self.game_dir / candidate).is_dir():
                     return candidate
-        return "movies"
+        return "videos"
 
     def _populate_gallery(self):
         self.tbl_images.setSortingEnabled(False)
