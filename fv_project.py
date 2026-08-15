@@ -57,7 +57,7 @@ class ProjectEntry:
     source_file: str | None = None       # nome file in sources/
     video_file: str | None = None        # nome file in videos/ (None = in attesa)
     last_frame_file: str | None = None
-    loop: bool = True
+    loop: bool = False
     exported_at: str = ""
     video_associated_at: str = ""
 
@@ -221,7 +221,7 @@ class FVProject:
     # ------------------------------------------------------------------ #
     def associate_video(self, image_name: str, video_path: Path,
                         last_frame_path: Path | None = None,
-                        loop: bool = True) -> Path | None:
+                        loop: bool = False) -> Path | None:
         """Associa un video a un'immagine (esportata o meno).
 
         Copia il video in videos/ rinominandolo "<alias>_vid.ext" (stessa
