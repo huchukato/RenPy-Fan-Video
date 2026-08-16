@@ -1848,6 +1848,10 @@ class FanVideoTool(QMainWindow):
                         first_line, img.name.lower())
             return (not img.is_resolved, [], 0, img.name.lower())
         self.images.sort(key=_timeline_key)
+        # Resetta l'ordinamento della QTableWidget (altrimenti riordina
+        # automaticamente per l'ultima colonna cliccata dall'utente)
+        self.tbl_images.setSortingEnabled(False)
+        self.tbl_images.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
         self._populate_gallery()
         self._log("[Gallery] Ordine cronologico ripristinato.")
 
