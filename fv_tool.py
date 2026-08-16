@@ -80,8 +80,8 @@ class SourceSortItem(NaturalSortItem):
         my_img = self.data(Qt.UserRole)
         other_img = other.data(Qt.UserRole)
         if my_img is not None and other_img is not None:
-            my_used = my_img.used_in[0] if my_img.used_in else (None, 0)
-            other_used = other_img.used_in[0] if other_img.used_in else (None, 0)
+            my_used = my_img.used_in[0] if my_img.used_in else (None, 0, None)
+            other_used = other_img.used_in[0] if other_img.used_in else (None, 0, None)
             my_key = (self._natural_key(str(my_used[0])), my_used[1])
             other_key = (self._natural_key(str(other_used[0])), other_used[1])
             return my_key < other_key
@@ -146,6 +146,7 @@ TRANSLATIONS = {
         'filter_static': "Static only",
         'filter_movie': "Already animated",
         'filter_file_all': "All files",
+        'filter_scene_all': "All scenes",
         'col_name': "Name",
         'col_source': "Source",
         'col_line': "Line",
@@ -171,6 +172,9 @@ TRANSLATIONS = {
                            "go to the Patch tab and double-click the row to "
                            "associate it.",
         'btn_open_sources': "Open sources folder",
+        'btn_sort_chrono': "Sort Chronologically",
+        'btn_sort_chrono_tip': "Restore the gallery order to match the game "
+                               "scripts timeline (first appearance).",
         'btn_close': "Close",
         'file_label': "File",
         'source_label': "Source",
@@ -285,6 +289,7 @@ TRANSLATIONS = {
         'filter_static': "Solo statiche",
         'filter_movie': "Gia' animate",
         'filter_file_all': "Tutti i file",
+        'filter_scene_all': "Tutte le scene",
         'col_name': "Nome",
         'col_source': "Sorgente",
         'col_line': "Riga",
@@ -309,6 +314,9 @@ TRANSLATIONS = {
                            "<b>'in attesa di video'</b>. Quando il video sara' pronto, "
                            "vai nel tab Patch e fai doppio click sulla riga per associarlo.",
         'btn_open_sources': "Apri cartella sources",
+        'btn_sort_chrono': "Ordine cronologico",
+        'btn_sort_chrono_tip': "Riporta la galleria nell'ordine in cui le "
+                               "immagini compaiono negli script di gioco.",
         'btn_close': "Chiudi",
         'file_label': "File",
         'source_label': "Sorgente",
@@ -420,6 +428,7 @@ TRANSLATIONS = {
         'filter_static': "Solo estaticas",
         'filter_movie': "Ya animadas",
         'filter_file_all': "Todos los archivos",
+        'filter_scene_all': "Todas las escenas",
         'col_name': "Nombre",
         'col_source': "Origen",
         'col_line': "Linea",
@@ -446,6 +455,9 @@ TRANSLATIONS = {
                            "ve a la pestana Patch y haz doble clic en la fila para "
                            "asociarlo.",
         'btn_open_sources': "Abrir carpeta sources",
+        'btn_sort_chrono': "Orden cronologico",
+        'btn_sort_chrono_tip': "Restaura el orden de la galeria para coincidir "
+                               "con la linea temporal de los scripts del juego.",
         'btn_close': "Cerrar",
         'file_label': "Archivo",
         'source_label': "Origen",
@@ -678,9 +690,14 @@ class AssociateDialog(QDialog):
 
         try:
             import subprocess
+            from fv_ffmpeg import find_ffmpeg
+            ffmpeg = find_ffmpeg()
+            if not ffmpeg:
+                self.lf_lbl.setText(self.tr['dlg_last_frame_failed'])
+                return
             # Estrae l'ultimo frame: -sseof -1 va alla fine, -frames:v 1 un solo frame
             result = subprocess.run(
-                ["ffmpeg", "-y", "-sseof", "-0.1", "-i", str(self.video_path),
+                [ffmpeg, "-y", "-sseof", "-0.1", "-i", str(self.video_path),
                  "-frames:v", "1", "-q:v", "2", str(lf_path)],
                 capture_output=True, timeout=30,
             )
@@ -690,7 +707,7 @@ class AssociateDialog(QDialog):
             else:
                 # Fallback: prova con l'ultimo frame normale
                 result = subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(self.video_path),
+                    [ffmpeg, "-y", "-i", str(self.video_path),
                      "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(lf_path)],
                     capture_output=True, timeout=30,
                 )
@@ -1081,10 +1098,15 @@ class FanVideoTool(QMainWindow):
 
         self.cmb_file_filter = QComboBox()
         self.cmb_file_filter.setMinimumWidth(200)
-        self.cmb_file_filter.currentIndexChanged.connect(self._apply_filter)
+        self.cmb_file_filter.currentIndexChanged.connect(self._on_file_filter_changed)
+
+        self.cmb_scene_filter = QComboBox()
+        self.cmb_scene_filter.setMinimumWidth(250)
+        self.cmb_scene_filter.currentIndexChanged.connect(self._apply_filter)
 
         filter_box.addWidget(self.txt_filter, 1)
         filter_box.addWidget(self.cmb_file_filter)
+        filter_box.addWidget(self.cmb_scene_filter)
         left.addLayout(filter_box)
 
         self.tbl_images = QTableWidget()
@@ -1105,8 +1127,11 @@ class FanVideoTool(QMainWindow):
         self.btn_export.clicked.connect(self._export_image)
         self.btn_sources = QPushButton("")
         self.btn_sources.clicked.connect(self._open_sources_folder)
+        self.btn_sort_chrono = QPushButton("")
+        self.btn_sort_chrono.clicked.connect(self._sort_chronologically)
         btn_row.addWidget(self.btn_export)
         btn_row.addWidget(self.btn_sources)
+        btn_row.addWidget(self.btn_sort_chrono)
         left.addLayout(btn_row)
 
         hbox.addLayout(left, 1)
@@ -1283,6 +1308,8 @@ class FanVideoTool(QMainWindow):
         self.btn_export.setToolTip(tr['btn_export_tip'])
         self.btn_sources.setText(tr['btn_open_sources'])
         self.btn_sources.setToolTip(tr['btn_open_sources'])
+        self.btn_sort_chrono.setText(tr['btn_sort_chrono'])
+        self.btn_sort_chrono.setToolTip(tr['btn_sort_chrono_tip'])
         self.lbl_preview_title.setText(tr['preview'])
         self.lbl_info.setText(tr['select_image_first'])
 
@@ -1655,7 +1682,7 @@ class FanVideoTool(QMainWindow):
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.tbl_images.setItem(i, 1, name_item)
 
-            src = img.used_in[0] if img.used_in else (Path("-"), 0)
+            src = img.used_in[0] if img.used_in else (Path("-"), 0, None)
             src_item = SourceSortItem(src[0].name if hasattr(src[0], 'name') else str(src[0]))
             src_item.setData(Qt.UserRole, img)
             src_item.setToolTip(str(src[0]))
@@ -1699,7 +1726,7 @@ class FanVideoTool(QMainWindow):
         # Raccogli i file .rpy da cui provengono le immagini
         files = set()
         for img in self.images:
-            for rpy, _ in img.used_in:
+            for rpy, _, _ in img.used_in:
                 fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
                 files.add(fname)
         for fname in sorted(files):
@@ -1710,6 +1737,58 @@ class FanVideoTool(QMainWindow):
             if idx >= 0:
                 self.cmb_file_filter.setCurrentIndex(idx)
         self.cmb_file_filter.blockSignals(False)
+        # Aggiorna anche il combo scene
+        self._repopulate_scene_filter()
+
+    def _on_file_filter_changed(self):
+        """Quando cambia il filtro file, ripopola il combo scene e filtra."""
+        self._repopulate_scene_filter()
+        self._apply_filter()
+
+    def _repopulate_scene_filter(self):
+        """Ripopola il combo delle scene in base al file selezionato."""
+        file_idx = self.cmb_file_filter.currentIndex()
+        file_filter = None
+        if file_idx > 0:
+            file_filter = self.cmb_file_filter.currentText()
+
+        prev_scene = self.cmb_scene_filter.currentText()
+        prev_scene_idx = self.cmb_scene_filter.currentIndex()
+        self.cmb_scene_filter.blockSignals(True)
+        self.cmb_scene_filter.clear()
+        self.cmb_scene_filter.addItem(self.tr['filter_scene_all'])
+
+        # Raccogli le scene per il file selezionato (o tutti i file)
+        scenes: list[tuple[str, str]] = []  # (label, file_name) per ordinamento
+        seen = set()
+        for img in self.images:
+            for rpy, _, label in img.used_in:
+                if label is None:
+                    continue
+                fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
+                if file_filter and fname != file_filter:
+                    continue
+                key = (label, fname)
+                if key not in seen:
+                    seen.add(key)
+                    scenes.append((label, fname))
+
+        # Ordina per file (naturale) poi per label
+        import re as _re
+        def _nk(s):
+            return [int(t) if t.isdigit() else t.lower()
+                    for t in _re.split(r'(\d+)', s) if t != '']
+        scenes.sort(key=lambda x: (_nk(x[1]), _nk(x[0])))
+
+        for label, fname in scenes:
+            self.cmb_scene_filter.addItem(label)
+
+        # Ripristina selezione scene se possibile
+        if prev_scene_idx > 0 and prev_scene:
+            idx = self.cmb_scene_filter.findText(prev_scene)
+            if idx >= 0:
+                self.cmb_scene_filter.setCurrentIndex(idx)
+        self.cmb_scene_filter.blockSignals(False)
 
     def _filtered_images(self) -> list[StaticImage]:
         text = self.txt_filter.text().lower()
@@ -1718,6 +1797,11 @@ class FanVideoTool(QMainWindow):
         if file_idx > 0:
             file_filter = self.cmb_file_filter.currentText()
 
+        scene_idx = self.cmb_scene_filter.currentIndex()
+        scene_filter = None
+        if scene_idx > 0:
+            scene_filter = self.cmb_scene_filter.currentText()
+
         out: list[StaticImage] = []
         for img in self.images:
             # Mostra solo immagini statiche (non già animate)
@@ -1725,9 +1809,20 @@ class FanVideoTool(QMainWindow):
                 continue
             if file_filter:
                 found = False
-                for rpy, _ in img.used_in:
+                for rpy, _, _ in img.used_in:
                     fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
                     if fname == file_filter:
+                        found = True
+                        break
+                if not found:
+                    continue
+            if scene_filter:
+                found = False
+                for rpy, _, label in img.used_in:
+                    fname = rpy.name if hasattr(rpy, 'name') else str(rpy)
+                    if file_filter and fname != file_filter:
+                        continue
+                    if label == scene_filter:
                         found = True
                         break
                 if not found:
@@ -1738,6 +1833,23 @@ class FanVideoTool(QMainWindow):
 
     def _apply_filter(self):
         self._populate_gallery()
+
+    def _sort_chronologically(self):
+        """Riordina self.images per timeline (prima comparsa negli script)
+        e ripopola la galleria, annullando eventuali ordinamenti manuali."""
+        import re as _re
+        def _natural_key(s: str):
+            return [int(t) if t.isdigit() else t.lower()
+                    for t in _re.split(r'(\d+)', s)]
+        def _timeline_key(img):
+            if img.used_in:
+                first_file, first_line, _ = img.used_in[0]
+                return (not img.is_resolved, _natural_key(str(first_file)),
+                        first_line, img.name.lower())
+            return (not img.is_resolved, [], 0, img.name.lower())
+        self.images.sort(key=_timeline_key)
+        self._populate_gallery()
+        self._log("[Gallery] Ordine cronologico ripristinato.")
 
     def resizeEvent(self, event):
         """Ridisegna il preview quando la finestra cambia dimensione."""
@@ -1775,7 +1887,7 @@ class FanVideoTool(QMainWindow):
             self.lbl_preview.clear()
             self.lbl_preview.setText(self.tr['preview_unavailable'])
 
-        src = img.used_in[0] if img.used_in else (Path("-"), 0)
+        src = img.used_in[0] if img.used_in else (Path("-"), 0, None)
         src_name = src[0].name if hasattr(src[0], 'name') else str(src[0])
         file_label = str(img.file_path) if img.file_path else self.tr['not_resolved']
         self.lbl_info.setText(
@@ -2124,10 +2236,15 @@ class FanVideoTool(QMainWindow):
 
         try:
             import subprocess
+            from fv_ffmpeg import find_ffmpeg
+            ffmpeg = find_ffmpeg()
+            if not ffmpeg:
+                self._log("[LastFrame] ffmpeg not found — skipping extraction")
+                return None
             # Estrae in un file temporaneo per non cancellare eventuali vecchi
             tmp_path = lf_path.with_suffix(".tmp.jpg")
             result = subprocess.run(
-                ["ffmpeg", "-y", "-sseof", "-0.1", "-i", str(video_path),
+                [ffmpeg, "-y", "-sseof", "-0.1", "-i", str(video_path),
                  "-frames:v", "1", "-q:v", "2", str(tmp_path)],
                 capture_output=True, timeout=30,
             )
@@ -2138,7 +2255,7 @@ class FanVideoTool(QMainWindow):
             # Fallback: prova con select=last
             self._log(f"[LastFrame] First method failed, trying fallback...")
             result = subprocess.run(
-                ["ffmpeg", "-y", "-i", str(video_path),
+                [ffmpeg, "-y", "-i", str(video_path),
                  "-vf", "select=last", "-frames:v", "1", "-q:v", "2", str(tmp_path)],
                 capture_output=True, timeout=30,
             )
@@ -2564,6 +2681,11 @@ class FanVideoTool(QMainWindow):
 # Entry point
 # ---------------------------------------------------------------------- #
 def main():
+    # PyInstaller: previene che i processi figli (multiprocessing)
+    # rilancino l'intera app su macOS
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     app = QApplication(sys.argv)
     app.setApplicationName("RenPy-Fan-Video")
     app.setWindowIcon(_app_icon())

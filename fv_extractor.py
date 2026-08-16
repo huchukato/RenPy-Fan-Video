@@ -10,7 +10,44 @@ di generazione patch video.
 import os
 import sys
 import subprocess
+import shutil
 from pathlib import Path
+
+
+def _is_frozen() -> bool:
+    """True se stiamo girando dentro un bundle PyInstaller."""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def _get_python_executable() -> str:
+    """Restituisce il path di un Python eseguibile per i subprocess.
+
+    In un'app PyInstaller frozen, sys.executable e' l'app stessa, non
+    Python. Usarlo per subprocess rilancerebbe l'intera app (fork bomb).
+    Cerchiamo invece il Python di sistema.
+    """
+    if not _is_frozen():
+        return sys.executable
+
+    # Cerca Python di sistema in ordine di preferenza
+    candidates = [
+        "/opt/homebrew/bin/python3",
+        "/usr/local/bin/python3",
+        "/usr/bin/python3",
+        "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+    ]
+    for p in candidates:
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+
+    # Fallback: shutil.which
+    found = shutil.which("python3")
+    if found:
+        return found
+
+    # Ultimo resort: sys.executable (causera' fork bomb, ma almeno
+    # non crashiamo silenziosamente)
+    return sys.executable
 
 
 class FVExtractor:
@@ -96,7 +133,7 @@ class FVExtractor:
             self.log(f"Estrazione di {rpa_file.name}...")
             try:
                 result = subprocess.run(
-                    [sys.executable, str(rpatool_path), '-x',
+                    [_get_python_executable(), str(rpatool_path), '-x',
                      str(rpa_file), '-o', str(self.output_dir)],
                     capture_output=True, text=True
                 )
@@ -162,8 +199,12 @@ class FVExtractor:
                 progress_callback(i + len(batch), len(rpyc_files))
 
             try:
+                py = _get_python_executable()
+                # In app frozen, forziamo single-process (-p 1) per evitare
+                # che multiprocessing.Pool rilanci l'app
+                extra_args = ['-p', '1'] if _is_frozen() else []
                 result = subprocess.run(
-                    [sys.executable, str(unrpyc_path), '-c'] + [str(f) for f in batch],
+                    [py, str(unrpyc_path), '-c'] + extra_args + [str(f) for f in batch],
                     capture_output=True, text=True, cwd=str(self.output_dir)
                 )
                 if result.returncode != 0:

@@ -43,11 +43,12 @@ class StaticImage:
     """Rappresenta un'immagine statica individuata nei .rpy."""
     name: str                       # nome Ren'Py (es. "day20_waking_up 1", "an 6")
     file_path: Path | None = None   # file su disco (None se non risolto)
-    used_in: list = field(default_factory=list)  # [(rpy_file, line_no), ...]
+    used_in: list = field(default_factory=list)  # [(rpy_file, line_no, scene_label), ...]
     already_movie: bool = False     # True se esiste gia' una def Movie
     movie_definition: str | None = None  # testo della def Movie se presente
     definition_file: Path | None = None   # .rpy dove e' definita (se presente)
     definition_line: int | None = None
+    scene_label: str | None = None  # label della scena della prima occorrenza
 
     @property
     def is_resolved(self) -> bool:
@@ -59,6 +60,8 @@ class FVScanner:
 
     # Regex per scene/show (con indentazione opzionale)
     _RE_SCENE = re.compile(r'^(\s*)(scene|show)\s+(.+)$')
+    # Regex per label (es. "label R10_CandyHomeLate:")
+    _RE_LABEL = re.compile(r'^label\s+(\S+)\s*:')
     # Regex per definizioni image
     _RE_IMAGE_DEF = re.compile(
         r'^image\s+(.+?)\s*=\s*(.+)$'
@@ -207,14 +210,21 @@ class FVScanner:
         """Estrae le istruzioni scene/show da un file .rpy.
 
         Args:
-            usages: dict name -> list[(rpy_file, line)] da popolare.
+            usages: dict name -> list[(rpy_file, line, scene_label)] da popolare.
         """
         try:
             lines = rpy_file.read_text(encoding='utf-8', errors='replace').splitlines()
         except Exception:
             return
 
+        current_label: str | None = None
         for i, line in enumerate(lines, 1):
+            # Traccia il label corrente (solo label top-level, senza indentazione)
+            lm = self._RE_LABEL.match(line)
+            if lm:
+                current_label = lm.group(1)
+                continue
+
             m = self._RE_SCENE.match(line)
             if not m:
                 continue
@@ -250,7 +260,7 @@ class FVScanner:
             if any(c in name for c in '[]{}$'):
                 continue
 
-            usages.setdefault(name, []).append((rpy_file, i))
+            usages.setdefault(name, []).append((rpy_file, i, current_label))
 
     # ------------------------------------------------------------------ #
     # API pubblica
@@ -337,6 +347,9 @@ class FVScanner:
             if file_path is None:
                 continue
 
+            # Estrae il scene_label dalla prima occorrenza
+            scene_label = locations[0][2] if locations else None
+
             images.append(StaticImage(
                 name=name,
                 file_path=file_path,
@@ -345,6 +358,7 @@ class FVScanner:
                 movie_definition=movie_def_text,
                 definition_file=def_file,
                 definition_line=def_line,
+                scene_label=scene_label,
             ))
 
         # Ordina per "timeline": prima le immagini risolte, poi in base a
@@ -355,7 +369,7 @@ class FVScanner:
         # di timeline.
         def _timeline_key(img: StaticImage):
             if img.used_in:
-                first_file, first_line = img.used_in[0]
+                first_file, first_line, _ = img.used_in[0]
                 return (not img.is_resolved, self._natural_key(str(first_file)),
                         first_line, img.name.lower())
             return (not img.is_resolved, [], 0, img.name.lower())
@@ -400,5 +414,5 @@ if __name__ == "__main__":
         status = "MOVIE" if img.already_movie else ("OK" if img.is_resolved else "??")
         print(f"  [{status}] {img.name}  <-  {img.file_path}")
         if img.used_in:
-            rpy, line = img.used_in[0]
-            print(f"         usato in: {rpy.name}:{line} (+{len(img.used_in)-1} altri)")
+            rpy, line, label = img.used_in[0]
+            print(f"         usato in: {rpy.name}:{line} [{label}] (+{len(img.used_in)-1} altri)")

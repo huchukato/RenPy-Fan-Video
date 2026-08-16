@@ -116,25 +116,28 @@ class FVGenerator:
             images_dir = self.game_dir / "images"
             if images_dir.exists():
                 import subprocess
+                from fv_ffmpeg import find_ffprobe
+                ffprobe = find_ffprobe()
                 for img_path in images_dir.rglob("*.jpg"):
                     if not img_path.is_file():
                         continue
                     # Prova ffprobe prima, poi sips (macOS)
-                    try:
-                        result = subprocess.run(
-                            ["ffprobe", "-v", "error", "-select_streams", "v:0",
-                             "-show_entries", "stream=width,height", "-of", "csv=p=0",
-                             str(img_path)],
-                            capture_output=True, timeout=10,
-                        )
-                        out = result.stdout.decode().strip()
-                        if out:
-                            parts = out.split(",")
-                            w, h = int(parts[0]), int(parts[1])
-                            self.log(f"Game resolution (from image): {w}x{h}")
-                            return (w, h)
-                    except Exception:
-                        pass
+                    if ffprobe:
+                        try:
+                            result = subprocess.run(
+                                [ffprobe, "-v", "error", "-select_streams", "v:0",
+                                 "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                                 str(img_path)],
+                                capture_output=True, timeout=10,
+                            )
+                            out = result.stdout.decode().strip()
+                            if out:
+                                parts = out.split(",")
+                                w, h = int(parts[0]), int(parts[1])
+                                self.log(f"Game resolution (from image): {w}x{h}")
+                                return (w, h)
+                        except Exception:
+                            pass
                     try:
                         result = subprocess.run(
                             ["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(img_path)],
