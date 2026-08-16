@@ -1847,10 +1847,13 @@ class FanVideoTool(QMainWindow):
     # Patch
     # ------------------------------------------------------------------ #
     def _on_patch_double_click(self, item):
-        """Double-click sulla tabella patch: toggle loop (colonna 3) oppure
-        associa/sostituisce manualmente il video (colonna 1)."""
+        """Double-click sulla tabella patch:
+        - colonna 0 (Image): re-esporta l'immagine dal gioco in sources/
+        - colonna 1 (Video): associa/sostituisce manualmente il video
+        - colonna 3 (Loop): toggle loop on/off
+        """
         col = self.tbl_patch.column(item)
-        if col not in (1, 3):
+        if col not in (0, 1, 3):
             return
         row = self.tbl_patch.row(item)
         if row < 0 or row >= len(self.assignments):
@@ -1863,12 +1866,43 @@ class FanVideoTool(QMainWindow):
         if not entry:
             return
 
-        if col == 3:  # col_loop
+        if col == 0:  # col_image: re-esporta dal gioco
+            self._reexport_from_gallery(entry)
+        elif col == 3:  # col_loop
             entry.loop = not entry.loop
             self._populate_patch()
             self._log(f"[Loop] {entry.image_name}: {'ON' if entry.loop else 'OFF'}")
         elif col == 1:  # col_video
             self._manual_associate_video(entry)
+
+    def _reexport_from_gallery(self, entry: PatchEntry):
+        """Re-esporta l'immagine originale del gioco in sources/ direttamente
+        dal tab Patch, senza dover andare in Galleria a cercarla."""
+        if not self.images:
+            QMessageBox.warning(self, self.tr['error_title'],
+                                "Gallery not loaded. Run analysis first.")
+            return
+        # Trova l'immagine nella galleria
+        img = next((i for i in self.images if i.name == entry.image_name), None)
+        if img is None:
+            QMessageBox.warning(self, self.tr['error_title'],
+                                f"Image '{entry.image_name}' not found in gallery.")
+            return
+        if not img.is_resolved or not img.file_path or not img.file_path.exists():
+            QMessageBox.warning(self, self.tr['error_title'],
+                                f"Source file for '{entry.image_name}' not found.")
+            return
+        # Esporta
+        project = self._ensure_project()
+        project.create()
+        try:
+            dest = project.export_image(img.name, cast(Path, img.file_path))
+            # Aggiorna il path nell'entry
+            entry.start_image_path = dest
+            self._populate_patch()
+            self._log(f"[Re-export] {img.name} -> sources/{dest.name}")
+        except Exception as e:
+            QMessageBox.critical(self, self.tr['error_title'], str(e))
 
     def _ensure_project(self) -> FVProject:
         """Restituisce (creando se necessario) il progetto per il gioco corrente."""
